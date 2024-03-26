@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "eyes"
+version = "0.1.0"
+description = "Logiciel tout en un de gestion du cycle de vie de n'importe quelle entreprise"
+authors = ["Hugues DTANKOUO <huguesdtankouo@gmail.com>"]
+readme = "README.md"
+packages = [
+    { include = "eyes", from = "src" },
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+models = { path = "../models", develop = true }
+black = "^24.2.0"
+mypy = "^1.9.0"
+pytest = "^8.1.1"
+pydantic = "^2.6.4"
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.3.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 120
+exclude = [
+    ".venv",
+    "build",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.poetry.scripts]
+lint = "eyes.scripts.run_lint:run"
+tests = "eyes.scripts.run_tests:run"
+check = "eyes.scripts.run_check:run"
