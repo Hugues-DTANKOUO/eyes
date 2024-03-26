@@ -2,11 +2,16 @@
 Structure de base d'un modèle relationnel de données.
 
 - Classes:
-    - Database: Représente une base de données.
-    - Table: Représente une table.
-    - Column: Représente une colonne.
-    - ForeignKey: Représente une clé étrangère.
-    - PrimaryKey: Représente une clé primaire.
+    - DbConfig: Configuration d'une base de données.
+    - DataBaseType: Types de base de données.
+    - Database: Base de données.
+    - SQLite: Base de données SQLite.
+    - PostgreSQL: Base de données PostgreSQL.
+    - MySQL: Base de données MySQL.
+    - OracleDB: Base de données Oracle.
+    - SQLServer: Base de données SQL Server.
+    - Table: Table de la base de données.
+    - Column: Colonne d'une table.
 """
 
 from __future__ import annotations
@@ -423,7 +428,7 @@ class Table(BaseModel, Generic[TABLE_ORM_TYPE]):
     database: Database[TABLE_ORM_TYPE] = Field(
         ..., title="Base de données à laquelle appartient la table"
     )
-    columns: list = Field([], title="Colonnes de la table")
+    columns: list[Column] = Field([], title="Colonnes de la table")
     link_table: TABLE_ORM_TYPE = Field(..., title="ORM de la table")
 
     def __init__(self, name: str, database: Database[TABLE_ORM_TYPE]) -> None:
@@ -446,3 +451,27 @@ class Table(BaseModel, Generic[TABLE_ORM_TYPE]):
     def __str__(self) -> str:
         """Retourne une représentation de la table."""
         return f"Table {self._vb_name} de la base de données {self.database.name}"
+
+
+class Column(BaseModel):
+    """
+    Représente une colonne d'une table.
+
+    :param name: Nom de la colonne.
+    :param type: Type de la colonne.
+    :param length: Longueur de la colonne.
+    :param nullable: Indique si la colonne peut être nulle.
+    :param primary_key: Indique si la colonne est une clé primaire.
+    :param table: Table à laquelle appartient la colonne.
+    """
+
+    name: str = Field(..., title="Nom de la colonne")
+    type: str = Field(..., title="Type de la colonne")
+    length: int | None = Field(None, title="Longueur de la colonne")
+    nullable: bool = Field(True, title="Indique si la colonne peut être nulle")
+    primary_key: bool = Field(False, title="Indique si la colonne est une clé primaire")
+    table: Table = Field(None, title="Table à laquelle appartient la colonne")
+
+    def __str__(self) -> str:
+        """Retourne une représentation de la colonne."""
+        return f"Colonne {self.name} de type {self.type}"
