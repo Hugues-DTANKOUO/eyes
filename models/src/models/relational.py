@@ -147,7 +147,7 @@ class Database(Generic[TABLE_ORM_TYPE], ABC):
         """
 
         name: str = Field(..., title="Nom de la table")
-        columns: list = Field([], title="Colonnes de la table")
+        columns: list[Column] = Field([], title="Colonnes de la table")
         link_table: Type[ORM.Table] = Field(..., title="ORM de la table")
 
     def __init__(self, db_config: DbConfig | Path) -> None:
@@ -414,7 +414,7 @@ class SQLServer(Database[TABLE_ORM_TYPE]):
         pass
 
 
-class Table(BaseModel, Generic[TABLE_ORM_TYPE]):
+class Table(Generic[TABLE_ORM_TYPE]):
     """
     Représente une table de la base de données.
 
@@ -423,13 +423,11 @@ class Table(BaseModel, Generic[TABLE_ORM_TYPE]):
     :param columns: Colonnes de la table.
     """
 
-    _db_name: str = Field(..., title="Nom de la table")
-    _vb_name: str = Field(..., title="Nom (verbeux) de la table")
-    database: Database[TABLE_ORM_TYPE] = Field(
-        ..., title="Base de données à laquelle appartient la table"
-    )
-    columns: list[Column] = Field([], title="Colonnes de la table")
-    link_table: TABLE_ORM_TYPE = Field(..., title="ORM de la table")
+    db_name: str
+    vb_name: str
+    database: Database[TABLE_ORM_TYPE]
+    columns: list[Column]
+    link_table: Type[ORM.Table]
 
     def __init__(self, name: str, database: Database[TABLE_ORM_TYPE]) -> None:
         """
@@ -440,20 +438,18 @@ class Table(BaseModel, Generic[TABLE_ORM_TYPE]):
         """
 
         meta_data = database.get_table(name)
-        super().__init__(
-            _db_name=name,
-            _vb_name=name,
-            database=database,
-            columns=meta_data.columns,
-            link_table=meta_data.link_table,
-        )
+        self.db_name = meta_data.name
+        self.vb_name = name
+        self.database = database
+        self.columns = meta_data.columns
+        self.link_table = meta_data.link_table
 
     def __str__(self) -> str:
         """Retourne une représentation de la table."""
-        return f"Table {self._vb_name} de la base de données {self.database.name}"
+        return f"Table {self.vb_name} de la base de données {self.database.name}"
 
 
-class Column(BaseModel):
+class Column:
     """
     Représente une colonne d'une table.
 
@@ -465,12 +461,38 @@ class Column(BaseModel):
     :param table: Table à laquelle appartient la colonne.
     """
 
-    name: str = Field(..., title="Nom de la colonne")
-    type: str = Field(..., title="Type de la colonne")
-    length: int | None = Field(None, title="Longueur de la colonne")
-    nullable: bool = Field(True, title="Indique si la colonne peut être nulle")
-    primary_key: bool = Field(False, title="Indique si la colonne est une clé primaire")
-    table: Table = Field(None, title="Table à laquelle appartient la colonne")
+    name: str
+    type: str
+    length: int | None
+    nullable: bool
+    primary_key: bool
+    table: Table
+
+    def __init__(
+        self,
+        name: str,
+        type: str,
+        length: int,
+        nullable: bool,
+        primary_key: bool,
+        table: Table,
+    ) -> None:
+        """
+        Constructeur de la colonne.
+
+        :param name: Nom de la colonne.
+        :param type: Type de la colonne.
+        :param length: Longueur de la colonne.
+        :param nullable: Indique si la colonne peut être nulle.
+        :param primary_key: Indique si la colonne est une clé primaire.
+        :param table: Table à laquelle appartient la colonne.
+        """
+        self.name = name
+        self.type = type
+        self.length = length
+        self.nullable = nullable
+        self.primary_key = primary_key
+        self.table = table
 
     def __str__(self) -> str:
         """Retourne une représentation de la colonne."""
