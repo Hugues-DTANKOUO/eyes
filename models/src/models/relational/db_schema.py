@@ -25,7 +25,6 @@ from models.relational.config import DbConfig, DataBaseType
 ORM_TYPE = TypeVar("ORM_TYPE", bound=ORM)
 TABLE_ORM_TYPE = TypeVar("TABLE_ORM_TYPE", bound=ORM.Table)
 SESSION_ORM_TYPE = TypeVar("SESSION_ORM_TYPE", bound=ORM.Session)
-T = TypeVar("T", bound=ORM.Table)
 
 
 class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE], ABC):
