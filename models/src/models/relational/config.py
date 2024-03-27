@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class DbConfig(BaseModel):
@@ -72,7 +72,7 @@ class DbConfig(BaseModel):
         return f"DbConfig({self.host}, {self.port}, {self.user}, {self.database})"
 
     # Validateur pour le port
-    @validator("port")
+    @field_validator("port")
     def port_must_be_valid(cls, value: int) -> int:
         """
         Vérifie que le port est un entier positif.
@@ -93,12 +93,16 @@ class DbConfig(BaseModel):
         :return: URL de connexion à la base de données.
         """
 
+        parameters_url = (
+            f"{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+        )
+
         return {
-            DataBaseType.MYSQL: f"mysql+mysqlconnector://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
-            DataBaseType.POSTGRESQL: f"postgresql+psycopg2://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
+            DataBaseType.MYSQL: f"mysql+mysqlconnector://{parameters_url}",
+            DataBaseType.POSTGRESQL: f"postgresql+psycopg2://{parameters_url}",
             DataBaseType.SQLITE: f"sqlite:///{self.database}.db",
-            DataBaseType.ORACLE: f"oracle+cx_oracle://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
-            DataBaseType.SQLSERVER: f"mssql+pyodbc://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}",
+            DataBaseType.ORACLE: f"oracle+cx_oracle://{parameters_url}",
+            DataBaseType.SQLSERVER: f"mssql+pyodbc://{parameters_url}",
         }[self.type]
 
 

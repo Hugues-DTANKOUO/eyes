@@ -15,18 +15,20 @@ Structure de base d'un modèle relationnel de données.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Generic, TypeVar, Type
-from pydantic import BaseModel, Field
+from typing import Any, Generic, TypeVar, Type, cast
 from abc import ABC, abstractmethod
 
 from models.relational.orm import ORM
 from models.relational.config import DbConfig, DataBaseType
 
 
+ORM_TYPE = TypeVar("ORM_TYPE", bound=ORM)
 TABLE_ORM_TYPE = TypeVar("TABLE_ORM_TYPE", bound=ORM.Table)
+SESSION_ORM_TYPE = TypeVar("SESSION_ORM_TYPE", bound=ORM.Session)
+T = TypeVar("T", bound=ORM.Table)
 
 
-class Database(Generic[TABLE_ORM_TYPE], ABC):
+class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE], ABC):
     """
     Classe abstraite représentant une base de données.
     """
@@ -34,21 +36,9 @@ class Database(Generic[TABLE_ORM_TYPE], ABC):
     _engine_url: str
     _name: str
     _type: DataBaseType
+    _orm: ORM_TYPE
 
-    class TableMetaData(BaseModel):
-        """
-        Métadonnées d'une table.
-
-        :param name: Nom de la table.
-        :param columns: Colonnes de la table.
-        :param link_table: ORM de la table.
-        """
-
-        name: str = Field(..., title="Nom de la table")
-        columns: list[Column] = Field([], title="Colonnes de la table")
-        link_table: Type[ORM.Table] = Field(..., title="ORM de la table")
-
-    def __init__(self, db_config: DbConfig | Path) -> None:
+    def __init__(self, db_config: DbConfig | Path, orm_class_: Type[ORM_TYPE]) -> None:
         """
         Constructeur de la base de données.
 
@@ -68,24 +58,23 @@ class Database(Generic[TABLE_ORM_TYPE], ABC):
                 raise ValueError("Le type de base de données n'est pas supporté.")
         else:
             raise ValueError("La configuration de la base de données est invalide.")
+        self._orm = orm_class_(self._engine_url)
 
     @property
     def name(self) -> str:
         """Retourne le nom de la base de données."""
         return self._name
 
-    @abstractmethod
-    def connect(self) -> Any:
+    def connect(self) -> SESSION_ORM_TYPE:
         """Connecte à la base de données."""
-        pass
+        return cast(SESSION_ORM_TYPE, self._orm.get_session())
 
-    @abstractmethod
     def disconnect(self) -> None:
         """Déconnecte de la base de données."""
-        pass
+        self._orm.close_session()
 
     @abstractmethod
-    def get_table(self, table_name: str) -> TableMetaData:
+    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
         """
         Retourne les métadonnées d'une table.
 
@@ -105,35 +94,20 @@ class Database(Generic[TABLE_ORM_TYPE], ABC):
         pass
 
 
-class SQLite(Database[TABLE_ORM_TYPE]):
+class SQLite(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
     """
     Représente une base de données SQLite.
     """
 
-    class TableMetaData(Database.TableMetaData):
-        """
-        Métadonnées d'une table SQLite.
-        """
-
-        pass
-
-    def __init__(self, db_config: Path) -> None:
+    def __init__(self, db_config: Path, orm_class_: Type[ORM_TYPE]) -> None:
         """
         Constructeur de la base de données SQLite.
 
         :param db_config: Configuration de la base de données.
         """
-        super().__init__(db_config)
+        super().__init__(db_config, orm_class_)
 
-    def connect(self) -> Any:
-        """Connecte à la base de données SQLite."""
-        raise NotImplementedError
-
-    def disconnect(self) -> None:
-        """Déconnecte de la base de données SQLite."""
-        raise NotImplementedError
-
-    def get_table(self, table_name: str) -> SQLite.TableMetaData:
+    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
         """
         Retourne les métadonnées d'une table.
 
@@ -152,28 +126,20 @@ class SQLite(Database[TABLE_ORM_TYPE]):
         pass
 
 
-class PostgreSQL(Database[TABLE_ORM_TYPE]):
+class PostgreSQL(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
     """
     Représente une base de données PostgreSQL.
     """
 
-    def __init__(self, db_config: DbConfig) -> None:
+    def __init__(self, db_config: DbConfig, orm_class_: Type[ORM_TYPE]) -> None:
         """
         Constructeur de la base de données PostgreSQL.
 
         :param db_config: Configuration de la base de données.
         """
-        super().__init__(db_config)
+        super().__init__(db_config, orm_class_)
 
-    def connect(self) -> Any:
-        """Connecte à la base de données PostgreSQL."""
-        raise NotImplementedError
-
-    def disconnect(self) -> None:
-        """Déconnecte de la base de données PostgreSQL."""
-        raise NotImplementedError
-
-    def get_table(self, table_name: str) -> PostgreSQL.TableMetaData:
+    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
         """
         Retourne les métadonnées d'une table.
 
@@ -192,28 +158,20 @@ class PostgreSQL(Database[TABLE_ORM_TYPE]):
         pass
 
 
-class MySQL(Database[TABLE_ORM_TYPE]):
+class MySQL(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
     """
     Représente une base de données MySQL.
     """
 
-    def __init__(self, db_config: DbConfig) -> None:
+    def __init__(self, db_config: DbConfig, orm_class_: Type[ORM_TYPE]) -> None:
         """
         Constructeur de la base de données MySQL.
 
         :param db_config: Configuration de la base de données.
         """
-        super().__init__(db_config)
+        super().__init__(db_config, orm_class_)
 
-    def connect(self) -> Any:
-        """Connecte à la base de données MySQL."""
-        raise NotImplementedError
-
-    def disconnect(self) -> None:
-        """Déconnecte de la base de données MySQL."""
-        raise NotImplementedError
-
-    def get_table(self, table_name: str) -> MySQL.TableMetaData:
+    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
         """
         Retourne les métadonnées d'une table.
 
@@ -232,28 +190,20 @@ class MySQL(Database[TABLE_ORM_TYPE]):
         pass
 
 
-class OracleDB(Database[TABLE_ORM_TYPE]):
+class OracleDB(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
     """
     Représente une base de données Oracle.
     """
 
-    def __init__(self, db_config: DbConfig) -> None:
+    def __init__(self, db_config: DbConfig, orm_class_: Type[ORM_TYPE]) -> None:
         """
         Constructeur de la base de données Oracle.
 
         :param db_config: Configuration de la base de données.
         """
-        super().__init__(db_config)
+        super().__init__(db_config, orm_class_)
 
-    def connect(self) -> Any:
-        """Connecte à la base de données Oracle."""
-        raise NotImplementedError
-
-    def disconnect(self) -> None:
-        """Déconnecte de la base de données Oracle."""
-        raise NotImplementedError
-
-    def get_table(self, table_name: str) -> OracleDB.TableMetaData:
+    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
         """
         Retourne les métadonnées d'une table.
 
@@ -272,28 +222,20 @@ class OracleDB(Database[TABLE_ORM_TYPE]):
         pass
 
 
-class SQLServer(Database[TABLE_ORM_TYPE]):
+class SQLServer(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
     """
     Représente une base de données SQL Server.
     """
 
-    def __init__(self, db_config: DbConfig) -> None:
+    def __init__(self, db_config: DbConfig, orm_class_: Type[ORM_TYPE]) -> None:
         """
         Constructeur de la base de données SQL Server.
 
         :param db_config: Configuration de la base de données.
         """
-        super().__init__(db_config)
+        super().__init__(db_config, orm_class_)
 
-    def connect(self) -> Any:
-        """Connecte à la base de données SQL Server."""
-        raise NotImplementedError
-
-    def disconnect(self) -> None:
-        """Déconnecte de la base de données SQL Server."""
-        raise NotImplementedError
-
-    def get_table(self, table_name: str) -> SQLServer.TableMetaData:
+    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
         """
         Retourne les métadonnées d'une table.
 
@@ -312,7 +254,7 @@ class SQLServer(Database[TABLE_ORM_TYPE]):
         pass
 
 
-class Table(Generic[TABLE_ORM_TYPE]):
+class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
     """
     Représente une table de la base de données.
 
@@ -323,11 +265,13 @@ class Table(Generic[TABLE_ORM_TYPE]):
 
     db_name: str
     vb_name: str
-    database: Database[TABLE_ORM_TYPE]
+    database: Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]
     columns: list[Column]
-    link_table: Type[ORM.Table]
+    link_table: TABLE_ORM_TYPE
 
-    def __init__(self, name: str, database: Database[TABLE_ORM_TYPE]) -> None:
+    def __init__(
+        self, name: str, database: Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]
+    ) -> None:
         """
         Constructeur de la table.
 

@@ -32,6 +32,24 @@ class SQLAlchemy(ORM):
 
             return cast(SQLAlchemy.Table, table)
 
+    class Session(ORM.Session):
+        """
+        Classe de gestion des sessions.
+        """
+
+        @staticmethod
+        def create(session: Session) -> SQLAlchemy.Session:
+            """
+            Crée une session.
+            :param session: Session à créer.
+            """
+
+            return cast(SQLAlchemy.Session, session)
+
+        def close(self) -> None:
+            """Ferme la session."""
+            self.close()
+
     def __init__(self, engine_url: str) -> None:
         """
         Constructeur de la couche ORM pour SQLAlchemy.
@@ -54,13 +72,13 @@ class SQLAlchemy(ORM):
 
         return self.Table.create(cast(Table, self._base.classes[table_name]))
 
-    def get_session(self) -> Session:
+    def get_session(self) -> SQLAlchemy.Session:
         """
         Retourne une session.
         :return: Session.
         """
 
-        return self._session()
+        return self.Session.create(self._session())
 
     def close_session(self, session: Session) -> None:
         """
