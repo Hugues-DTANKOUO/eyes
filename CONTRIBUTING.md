@@ -23,7 +23,7 @@ Nous accueillons chaleuresement les pull requests. Voici quelques lignes directr
 
 #### 1. *Forker le dépôt* et suivez les instructions pour configurer votre espace de travail sur [VS Code](/docs/utilisatation-vs-code.md)
 
-#### 2. *Installez les dépendances* et assurez-vous que le projet fonctionne correctement sur votre système. [(poetry)](/fax/docs/python-3-poetry.md)
+#### 2. *Installez les dépendances* et assurez-vous que le projet fonctionne correctement sur votre système. [(poetry)](/eyes/docs/python-3-poetry.md)
 
 #### 3. *Suivez les conventions de code* du projet. Pour ce projet Python, nous suivons [PEP 8](https://peps.python.org/pep-0008/) ([Petit résumé de PEP 8](/docs/PEP8-resume-fr.md)), assurez-vous donc de l'avoir lu et de l'appliquer.
 

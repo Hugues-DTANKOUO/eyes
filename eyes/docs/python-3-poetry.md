@@ -42,12 +42,12 @@ pipx install poetry
 
 Si tu te trouves déjà dans le dossier du grand projet, exécute la commande 
 ```shell
-cd fax
+cd eyes
 ```
 
 ## Installe les dépendances du projet
 
-Une fois dans le dossier du projet, utilise `poetry` pour installer toutes les dépendances spécifiées dans le fichier [`pyproject.toml`](/fax/pyproject.toml):
+Une fois dans le dossier du projet, utilise `poetry` pour installer toutes les dépendances spécifiées dans le fichier [`pyproject.toml`](/eyes/pyproject.toml):
 ```shell
 poetry install
 ```

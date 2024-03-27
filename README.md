@@ -1,6 +1,15 @@
-# EYES : pour garder un oeil sur ton activité
+# <span style="color: blue; font-weight: bold;">EYES</span> : pour garder un oeil sur ton activité
 
 Logiciel tout en un de gestion du cycle de vie de n'importe quelle entreprise
+<div style="
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 300px;
+    "
+>
+    <img src="./assets/logo/eyes.png" width="300" height="auto" alt="Première image" />
+</div>
 
 ## Présentation Générale
 
@@ -14,7 +23,7 @@ Logiciel tout en un de gestion du cycle de vie de n'importe quelle entreprise
 
 ### [Comment contribuer au projet avec VS Code sur sa machine](/docs/utilisatation-vs-code.md)
 
-## Licence
+## [Licence](LICENSE)
 
 ## Contact
 
