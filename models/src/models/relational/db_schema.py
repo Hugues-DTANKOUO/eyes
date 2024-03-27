@@ -2,8 +2,6 @@
 Structure de base d'un modèle relationnel de données.
 
 - Classes:
-    - DbConfig: Configuration d'une base de données.
-    - DataBaseType: Types de base de données.
     - Database: Base de données.
     - SQLite: Base de données SQLite.
     - PostgreSQL: Base de données PostgreSQL.
@@ -17,115 +15,15 @@ Structure de base d'un modèle relationnel de données.
 from __future__ import annotations
 
 from pathlib import Path
-from enum import Enum
 from typing import Any, Generic, TypeVar, Type
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from abc import ABC, abstractmethod
 
-from models.orm import ORM
+from models.relational.orm import ORM
+from models.relational.config import DbConfig, DataBaseType
 
 
 TABLE_ORM_TYPE = TypeVar("TABLE_ORM_TYPE", bound=ORM.Table)
-
-
-class DbConfig(BaseModel):
-    """
-    Eléments de configuration d'une base de données.
-
-    :param host: Adresse du serveur de base de données.
-    :param port: Port du serveur de base de données.
-    :param type: Type de base de données.
-    :param user: Nom d'utilisateur de la base de données.
-    :param password: Mot de passe de la base de données.
-    :param database: Nom de la base de données.
-    """
-
-    host: str = Field("localhost", title="Adresse du serveur de base de données")
-    port: int = Field(..., title="Port du serveur de base de données")
-    type: DataBaseType = Field(..., title="Type de base de données")
-    user: str = Field("root", title="Nom d'utilisateur de la base de données")
-    password: str = Field(..., title="Mot de passe de la base de données")
-    database: str = Field("test", title="Nom de la base de données")
-
-    def __init__(
-        self,
-        host: str,
-        user: str,
-        type: DataBaseType,
-        password: str,
-        database: str,
-        port: int | None = None,
-    ) -> None:
-        """
-        Constructeur de la configuration de la base de données.
-
-        :param host: Adresse du serveur de base de données.
-        :param user: Nom d'utilisateur de la base de données.
-        :param type: Type de base de données.
-        :param password: Mot de passe de la base de données.
-        :param database: Nom de la base de données.
-        :param port: Port du serveur de base de données.
-        """
-
-        if port is None:
-            port = type.default_port()
-
-        super().__init__(
-            host=host,
-            port=port,
-            type=type,
-            user=user,
-            password=password,
-            database=database,
-        )
-
-    def __str__(self) -> str:
-        """Retourne une représentation de la configuration de la base de données."""
-        return f"DbConfig({self.host}, {self.port}, {self.user}, {self.database})"
-
-    def __repr__(self) -> str:
-        """Retourne une représentation de la configuration de la base de données."""
-        return f"DbConfig({self.host}, {self.port}, {self.user}, {self.database})"
-
-    # Validateur pour le port
-    @validator("port")
-    def port_must_be_valid(cls, value: int) -> int:
-        """
-        Vérifie que le port est un entier positif.
-
-        :param value: Port du serveur de base de données.
-        :return: Port du serveur de base de données.
-        """
-        if not (isinstance(value, int) or 1 <= abs(value) <= 65535):
-            raise ValueError(
-                "Le port doit être un entier positif compris entre 1 et 65535."
-            )
-        return abs(value)
-
-
-class DataBaseType(Enum):
-    """Types de base de données."""
-
-    MYSQL = "mysql"
-    POSTGRESQL = "postgresql"
-    SQLITE = "sqlite"
-    ORACLE = "oracle"
-    SQLSERVER = "sqlserver"
-
-    def __str__(self) -> str:
-        """Retourne une représentation du type de base de données."""
-        return self.value
-
-    def default_port(self) -> int:
-        """Retourne le port par défaut du type de base de données."""
-
-        return {
-            DataBaseType.MYSQL: 3306,
-            DataBaseType.POSTGRESQL: 5432,
-            DataBaseType.SQLITE: 0,
-            DataBaseType.ORACLE: 1521,
-            DataBaseType.SQLSERVER: 1433,
-        }[self]
 
 
 class Database(Generic[TABLE_ORM_TYPE], ABC):
@@ -133,7 +31,7 @@ class Database(Generic[TABLE_ORM_TYPE], ABC):
     Classe abstraite représentant une base de données.
     """
 
-    _db_config: DbConfig | str
+    _engine_url: str
     _name: str
     _type: DataBaseType
 
@@ -158,12 +56,12 @@ class Database(Generic[TABLE_ORM_TYPE], ABC):
         """
 
         if isinstance(db_config, DbConfig):
-            self._db_config = db_config
+            self._engine_url = db_config.get_engine_url()
             self._type = db_config.type
             self._name = db_config.database
         elif isinstance(db_config, Path):
             if db_config.suffix == ".db":
-                self._db_config = "sqlite:///" + str(db_config)
+                self._engine_url = "sqlite:///" + str(db_config)
                 self._type = DataBaseType.SQLITE
                 self._name = db_config.stem
             else:

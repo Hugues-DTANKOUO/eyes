@@ -1,4 +1,4 @@
-from models.relational import DbConfig, DataBaseType
+from models.relational.db_schema import DbConfig, DataBaseType
 
 
 def test_db_config() -> None:
