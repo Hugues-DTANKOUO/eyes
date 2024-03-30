@@ -16,11 +16,11 @@ mypy = "^1.9.0"
 pytest = "^8.1.1"
 pydantic = "^2.6.4"
 sqlalchemy = "^2.0.29"
-ipykernel = "^6.29.4"
 
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.3.2"
+ipykernel = "^6.29.4"
 
 [build-system]
 requires = ["poetry-core"]
