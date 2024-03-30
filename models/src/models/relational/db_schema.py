@@ -20,16 +20,21 @@ from abc import ABC, abstractmethod
 
 from models.relational.orm import ORM
 from models.relational.config import DbConfig, DataBaseType
+from models.relational.metadata import ColumnMeta, ColumnType
 
 
 ORM_TYPE = TypeVar("ORM_TYPE", bound=ORM)
 TABLE_ORM_TYPE = TypeVar("TABLE_ORM_TYPE", bound=ORM.Table)
-SESSION_ORM_TYPE = TypeVar("SESSION_ORM_TYPE", bound=ORM.Session)
 
 
-class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE], ABC):
+class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
     """
     Classe abstraite représentant une base de données.
+
+    :param _engine_url: URL de connexion à la base de données.
+    :param _name: Nom de la base de données.
+    :param _type: Type de la base de données.
+    :param _orm: Couche ORM de la base de données.
     """
 
     _engine_url: str
@@ -42,6 +47,7 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE], ABC):
         Constructeur de la base de données.
 
         :param db_config: Configuration de la base de données.
+        :param orm_class_: Classe de la couche ORM.
         """
 
         if isinstance(db_config, DbConfig):
@@ -64,23 +70,38 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE], ABC):
         """Retourne le nom de la base de données."""
         return self._name
 
-    def connect(self) -> SESSION_ORM_TYPE:
-        """Connecte à la base de données."""
-        return cast(SESSION_ORM_TYPE, self._orm.get_session())
-
-    def disconnect(self) -> None:
+    def disconnection(self) -> None:
         """Déconnecte de la base de données."""
         self._orm.close_session()
 
-    @abstractmethod
-    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
+    def get_table(self, table_name: str) -> Type[TABLE_ORM_TYPE]:
         """
         Retourne les métadonnées d'une table.
 
         :param table_name: Nom de la table.
         :return: Métadonnées de la table.
         """
-        pass
+        try:
+            return cast(Type[TABLE_ORM_TYPE], self._orm.get_table(table_name))
+        except ValueError as e:
+            raise ValueError(e) from e
+
+    def create_table(
+        self, table_name: str, columns: list[ColumnMeta]
+    ) -> Type[TABLE_ORM_TYPE]:
+        """
+        Crée une table.
+
+        :param table_name: Nom de la table.
+        :param columns: Colonnes de la table.
+        :return: Table créée.
+        """
+        try:
+            return cast(
+                Type[TABLE_ORM_TYPE], self._orm.create_table(table_name, columns)
+            )
+        except Exception as e:
+            raise Exception(f"Impossible de créer la table : {e}.") from e
 
     @abstractmethod
     def execute(self, query: str) -> Any:
@@ -93,7 +114,7 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE], ABC):
         pass
 
 
-class SQLite(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
+class SQLite(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données SQLite.
     """
@@ -103,17 +124,9 @@ class SQLite(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         Constructeur de la base de données SQLite.
 
         :param db_config: Configuration de la base de données.
+        :param orm_class_: Classe de la couche ORM.
         """
         super().__init__(db_config, orm_class_)
-
-    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
-        """
-        Retourne les métadonnées d'une table.
-
-        :param table_name: Nom de la table.
-        :return: Métadonnées de la table.
-        """
-        raise NotImplementedError
 
     def execute(self, query: str) -> Any:
         """
@@ -125,7 +138,7 @@ class SQLite(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         pass
 
 
-class PostgreSQL(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
+class PostgreSQL(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données PostgreSQL.
     """
@@ -135,17 +148,9 @@ class PostgreSQL(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         Constructeur de la base de données PostgreSQL.
 
         :param db_config: Configuration de la base de données.
+        :param orm_class_: Classe de la couche ORM.
         """
         super().__init__(db_config, orm_class_)
-
-    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
-        """
-        Retourne les métadonnées d'une table.
-
-        :param table_name: Nom de la table.
-        :return: Métadonnées de la table.
-        """
-        raise NotImplementedError
 
     def execute(self, query: str) -> Any:
         """
@@ -157,7 +162,7 @@ class PostgreSQL(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         pass
 
 
-class MySQL(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
+class MySQL(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données MySQL.
     """
@@ -167,17 +172,9 @@ class MySQL(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         Constructeur de la base de données MySQL.
 
         :param db_config: Configuration de la base de données.
+        :param orm_class_: Classe de la couche ORM.
         """
         super().__init__(db_config, orm_class_)
-
-    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
-        """
-        Retourne les métadonnées d'une table.
-
-        :param table_name: Nom de la table.
-        :return: Métadonnées de la table.
-        """
-        raise NotImplementedError
 
     def execute(self, query: str) -> Any:
         """
@@ -189,7 +186,7 @@ class MySQL(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         pass
 
 
-class OracleDB(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
+class OracleDB(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données Oracle.
     """
@@ -199,17 +196,9 @@ class OracleDB(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         Constructeur de la base de données Oracle.
 
         :param db_config: Configuration de la base de données.
+        :param orm_class_: Classe de la couche ORM.
         """
         super().__init__(db_config, orm_class_)
-
-    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
-        """
-        Retourne les métadonnées d'une table.
-
-        :param table_name: Nom de la table.
-        :return: Métadonnées de la table.
-        """
-        raise NotImplementedError
 
     def execute(self, query: str) -> Any:
         """
@@ -221,7 +210,7 @@ class OracleDB(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         pass
 
 
-class SQLServer(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
+class SQLServer(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données SQL Server.
     """
@@ -234,15 +223,6 @@ class SQLServer(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         """
         super().__init__(db_config, orm_class_)
 
-    def get_table(self, table_name: str) -> TABLE_ORM_TYPE:
-        """
-        Retourne les métadonnées d'une table.
-
-        :param table_name: Nom de la table.
-        :return: Métadonnées de la table.
-        """
-        raise NotImplementedError
-
     def execute(self, query: str) -> Any:
         """
         Exécute une requête sur la base de données SQL Server.
@@ -253,7 +233,7 @@ class SQLServer(Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
         pass
 
 
-class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
+class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une table de la base de données.
 
@@ -264,30 +244,74 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]):
 
     db_name: str
     vb_name: str
-    database: Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]
+    database: Database[ORM_TYPE, TABLE_ORM_TYPE]
     columns: list[Column]
-    link_table: TABLE_ORM_TYPE
+    link_table: Type[TABLE_ORM_TYPE]
 
     def __init__(
-        self, name: str, database: Database[ORM_TYPE, TABLE_ORM_TYPE, SESSION_ORM_TYPE]
+        self,
+        name: str,
+        database: Database[ORM_TYPE, TABLE_ORM_TYPE],
+        columns: list[ColumnMeta] | None = None,
+        ensure_exists: bool = True,
+        orm_class: Type[ORM_TYPE] = cast(Type[ORM_TYPE], ORM),
     ) -> None:
         """
         Constructeur de la table.
 
         :param name: Nom de la table.
         :param database: Base de données à laquelle appartient la table.
+        :param columns: Colonnes de la table.
+        :param ensure_exists: Indique si la table doit exister.
         """
 
-        meta_data = database.get_table(name)
-        self.db_name = meta_data.name
-        self.vb_name = name
-        self.database = database
-        self.columns = meta_data.columns
-        self.link_table = meta_data.link_table
+        try:
+            table = database.get_table(name)
+            self.db_name = table.name
+            self.vb_name = name
+            self.database = database
+            self.columns = [
+                Column(
+                    column["name"],
+                    column["type"],
+                    column["length"] or 0,
+                    column["nullable"],
+                    column["primary_key"],
+                    self,
+                )
+                for column in table.columns
+            ]
+            self.link_table = cast(Type[TABLE_ORM_TYPE], table.link_table)
+        except orm_class.get_no_such_table_error() as e:
+            if ensure_exists:
+                raise orm_class.NoSuchTableError(e) from e
+            if columns is None:
+                raise ValueError("Les colonnes de la table sont obligatoires.")
+            table = database.create_table(name, columns)
+            self.db_name = table.name
+            self.vb_name = name
+            self.database = database
+            self.columns = [
+                Column(
+                    column["name"],
+                    column["type"],
+                    column["length"] or 0,
+                    column["nullable"],
+                    column["primary_key"],
+                    self,
+                )
+                for column in columns
+            ]
+            self.link_table = cast(Type[TABLE_ORM_TYPE], table.link_table)
 
     def __str__(self) -> str:
         """Retourne une représentation de la table."""
         return f"Table {self.vb_name} de la base de données {self.database.name}"
+
+    @property
+    def name(self) -> str:
+        """Retourne le nom de la table."""
+        return self.vb_name
 
 
 class Column:
@@ -303,7 +327,7 @@ class Column:
     """
 
     name: str
-    type: str
+    type: ColumnType
     length: int | None
     nullable: bool
     primary_key: bool
@@ -312,7 +336,7 @@ class Column:
     def __init__(
         self,
         name: str,
-        type: str,
+        type: ColumnType,
         length: int,
         nullable: bool,
         primary_key: bool,
@@ -337,4 +361,4 @@ class Column:
 
     def __str__(self) -> str:
         """Retourne une représentation de la colonne."""
-        return f"Colonne {self.name} de type {self.type}"
+        return f"Colonne {self.name} de type {self.type.value} de la table {self.table.vb_name}"

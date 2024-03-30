@@ -1,54 +1,160 @@
 from __future__ import annotations
 
-from sqlalchemy import Engine, create_engine, Table, MetaData
-from sqlalchemy.ext.automap import automap_base, AutomapBase
-from sqlalchemy.orm import sessionmaker, Session
-from typing import cast
+from sqlalchemy import (
+    Engine,
+    create_engine,
+    Table,
+    MetaData,
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Boolean,
+    Float,
+    Date,
+    Text,
+)
+from sqlalchemy.exc import NoSuchTableError as SQLAlchemyNoSuchTableError
+from typing import cast, Type
 
 from models.relational.orm import ORM
+from models.relational.metadata import ColumnMeta, ColumnType
+from copy import deepcopy
+
+
+def get_sqlalchemy_type(column_type: ColumnType, column_length: int | None) -> type:
+    """
+    Retourne le type SQLAlchemy correspondant à un type de colonne.
+    :param column_type: Type de colonne.
+    :param column_length: Longueur de la colonne.
+    :return: Type SQLAlchemy.
+    """
+
+    return {
+        ColumnType.INT: cast(type, Integer),
+        ColumnType.VARCHAR: (
+            cast(type, String)
+            if column_length is None
+            else cast(type, String(column_length))
+        ),
+        ColumnType.TEXT: (
+            cast(type, Text)
+            if column_length is None
+            else cast(type, Text(column_length))
+        ),
+        ColumnType.DATE: cast(type, Date),
+        ColumnType.DATETIME: cast(type, DateTime),
+        ColumnType.BOOLEAN: cast(type, Boolean),
+        ColumnType.DECIMAL: cast(type, Float),
+    }[column_type]
+
+
+def get_column_type(column_type: type) -> ColumnType:
+    """
+    Retourne le type de colonne correspondant à un type SQLAlchemy.
+    :param column_type: Type SQLAlchemy.
+    :return: Type de colonne.
+    """
+
+    column_type_str = str(column_type).split("(")[0]
+
+    return {
+        "INTEGER": ColumnType.INT,
+        "VARCHAR": ColumnType.VARCHAR,
+        "TEXT": ColumnType.TEXT,
+        "DATE": ColumnType.DATE,
+        "DATETIME": ColumnType.DATETIME,
+        "BOOLEAN": ColumnType.BOOLEAN,
+        "DECIMAL": ColumnType.DECIMAL,
+    }[column_type_str]
 
 
 class SQLAlchemy(ORM):
     """
     Classe de gestion de la couche ORM pour SQLAlchemy.
+
+    - Classes:
+        - Table: Classe de gestion des tables.
+        - Column: Classe de gestion des colonnes.
+        - NoSuchTableError: Erreur de table inexistante.
+
+    - Attributs:
+        - engine: Moteur de connexion à la base de données.
+        - no_such_table_error: Erreur de table inexistante.
+        - _metadata: Métadonnées de la base de données.
     """
 
     engine: Engine
-    _base: AutomapBase
     _metadata: MetaData
-    _session: sessionmaker[Session]
 
     class Table(ORM.Table):
         """
         Classe de gestion des tables.
+
+        - Attributs:
+            - link_table: Table liée.
+            - name: Nom de la table.
+            - columns: Colonnes.
         """
+
+        link_table: Table
+        name: str
+        columns: list[ColumnMeta]
 
         @staticmethod
         def create(table: Table) -> SQLAlchemy.Table:
             """
             Crée une table.
             :param table: Table à créer.
+            :return: Table.
             """
 
-            return cast(SQLAlchemy.Table, table)
+            table_orm = cast(SQLAlchemy.Table, table)
+            table_orm.link_table = deepcopy(table)
+            table_orm.columns = [
+                {
+                    "name": column.name,
+                    "type": get_column_type(cast(type, column.type)),
+                    "length": getattr(column.type, "length", None),
+                    "nullable": column.nullable or False,
+                    "primary_key": column.primary_key,
+                    "unique": column.unique or False,
+                }
+                for column in table.columns
+            ]
 
-    class Session(ORM.Session):
+            return table_orm
+
+    class Column(ORM.Column):
         """
-        Classe de gestion des sessions.
+        Classe de gestion des colonnes.
         """
 
         @staticmethod
-        def create(session: Session) -> SQLAlchemy.Session:
+        def create(column: Column) -> SQLAlchemy.Column:
             """
-            Crée une session.
-            :param session: Session à créer.
+            Crée une colonne.
+            :param column: Colonne à créer.
+            :return: Colonne.
             """
 
-            return cast(SQLAlchemy.Session, session)
+            column_orm = cast(SQLAlchemy.Column, column)
 
-        def close(self) -> None:
-            """Ferme la session."""
-            self.close()
+            column_orm.name = str(column["name"])
+            column_orm.type = cast(ColumnType, column["type"])
+            column_orm.length = int(column["length"])
+            column_orm.nullable = bool(column["nullable"])
+            column_orm.primary_key = bool(column["primary_key"])
+            column_orm.unique = bool(column["unique"])
+
+            return column_orm
+
+    class NoSuchTableError(SQLAlchemyNoSuchTableError):
+        """
+        Erreur de table inexistante.
+        """
+
+        pass
 
     def __init__(self, engine_url: str) -> None:
         """
@@ -57,11 +163,8 @@ class SQLAlchemy(ORM):
         """
 
         self.engine = create_engine(engine_url)
-        self._base = cast(AutomapBase, automap_base())
-        self._base.prepare(self.engine, reflect=True)
         self._metadata = MetaData()
         self._metadata.reflect(bind=self.engine)
-        self._session = sessionmaker(bind=self.engine)
 
     def get_table(self, table_name: str) -> SQLAlchemy.Table:
         """
@@ -69,25 +172,50 @@ class SQLAlchemy(ORM):
         :param table_name: Nom de la table.
         :return: Table.
         """
+        try:
+            table = Table(table_name, self._metadata, autoload_with=self.engine)
+            return self.Table.create(cast(Table, table))
+        except KeyError:
+            raise ValueError(f"La table {table_name} n'existe pas.")
 
-        return self.Table.create(cast(Table, self._base.classes[table_name]))
-
-    def get_session(self) -> SQLAlchemy.Session:
+    def create_table(
+        self, table_name: str, columns: list[ColumnMeta]
+    ) -> SQLAlchemy.Table:
         """
-        Retourne une session.
-        :return: Session.
+        Crée une table.
+        :param table_name: Nom de la table.
+        :param columns: Colonnes de la table.
+        :return: Table.
         """
 
-        return self.Session.create(self._session())
+        table = Table(
+            table_name,
+            self._metadata,
+            *[
+                Column(
+                    column["name"],
+                    get_sqlalchemy_type(column["type"], column["length"]),
+                    nullable=column["nullable"],
+                    primary_key=column["primary_key"],
+                    unique=column["unique"],
+                )
+                for column in columns
+            ],
+        )
 
-    def close_session(self, session: Session) -> None:
+        self._metadata.create_all(self.engine)
+
+        return self.Table.create(table)
+
+    @staticmethod
+    def get_no_such_table_error() -> Type[SQLAlchemyNoSuchTableError]:
         """
-        Ferme une session.
-        :param session: Session à fermer.
+        Retourne l'erreur de table inexistante.
+        :return: Erreur de table inexistante.
         """
 
-        session.close()
+        return SQLAlchemyNoSuchTableError
 
-    def close(self) -> None:
+    def close_session(self) -> None:
         """Ferme la connexion à la base de données."""
         self.engine.dispose()
