@@ -270,17 +270,7 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
             self.db_name = table.name
             self.vb_name = name
             self.database = database
-            self.columns = [
-                Column(
-                    column["name"],
-                    column["type"],
-                    column["length"] or 0,
-                    column["nullable"],
-                    column["primary_key"],
-                    self,
-                )
-                for column in table.columns
-            ]
+            self.columns = [Column(column, self) for column in table.columns]
             self.link_table = cast(Type[TABLE_ORM_TYPE], table.link_table)
         except orm_class.get_no_such_table_error() as e:
             if ensure_exists:
@@ -291,17 +281,7 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
             self.db_name = table.name
             self.vb_name = name
             self.database = database
-            self.columns = [
-                Column(
-                    column["name"],
-                    column["type"],
-                    column["length"] or 0,
-                    column["nullable"],
-                    column["primary_key"],
-                    self,
-                )
-                for column in columns
-            ]
+            self.columns = [Column(column, self) for column in columns]
             self.link_table = cast(Type[TABLE_ORM_TYPE], table.link_table)
 
     def __str__(self) -> str:
@@ -333,30 +313,18 @@ class Column:
     primary_key: bool
     table: Table
 
-    def __init__(
-        self,
-        name: str,
-        type: ColumnType,
-        length: int,
-        nullable: bool,
-        primary_key: bool,
-        table: Table,
-    ) -> None:
+    def __init__(self, meta_data: ColumnMeta, table: Table) -> None:
         """
         Constructeur de la colonne.
 
-        :param name: Nom de la colonne.
-        :param type: Type de la colonne.
-        :param length: Longueur de la colonne.
-        :param nullable: Indique si la colonne peut être nulle.
-        :param primary_key: Indique si la colonne est une clé primaire.
+        :param meta_data: Métadonnées de la colonne.
         :param table: Table à laquelle appartient la colonne.
         """
-        self.name = name
-        self.type = type
-        self.length = length
-        self.nullable = nullable
-        self.primary_key = primary_key
+        self.name = meta_data["name"]
+        self.type = meta_data["type"]
+        self.length = meta_data["length"]
+        self.nullable = meta_data["nullable"]
+        self.primary_key = meta_data["primary_key"]
         self.table = table
 
     def __str__(self) -> str:

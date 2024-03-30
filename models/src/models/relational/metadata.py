@@ -3,6 +3,7 @@ Méta-données d'un schéma de base de données.
 
 - Classes:
     - ColumnMeta: Métadonnées d'une colonne.
+    - ColumnType: Types de colonnes.
 """
 
 from typing import TypedDict
