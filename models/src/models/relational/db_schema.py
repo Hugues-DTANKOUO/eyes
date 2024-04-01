@@ -10,6 +10,7 @@ Structure de base d'un modèle relationnel de données.
     - SQLServer: Base de données SQL Server.
     - Table: Table de la base de données.
     - Column: Colonne d'une table.
+    - ForeignKeyColumn: Colonne de clé étrangère.
 """
 
 from __future__ import annotations
