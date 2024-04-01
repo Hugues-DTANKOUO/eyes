@@ -75,11 +75,11 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         self._orm.close_session()
 
     def get_or_create_orm_table(
-            self,
-            table_name: str,
-            columns: list[ColumnMeta] | None = None,
-            ensure_exists: bool = False,
-        ) -> Type[TABLE_ORM_TYPE]:
+        self,
+        table_name: str,
+        columns: list[ColumnMeta] | None = None,
+        ensure_exists: bool = False,
+    ) -> Type[TABLE_ORM_TYPE]:
         """
         Récupère ou crée une table du type de la couche ORM.
         :param table_name: Nom de la table.
@@ -91,14 +91,16 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         try:
             return cast(
                 Type[TABLE_ORM_TYPE],
-                self._orm.get_or_create_table(table_name, columns, ensure_exists)
+                self._orm.get_or_create_table(table_name, columns, ensure_exists),
             )
         except self._orm.NoSuchTableError as e:
             raise self._orm.NoSuchTableError(e) from e
         except self._orm.CreateTableError as e:
             raise self._orm.CreateTableError(e) from e
         except Exception as e:
-            raise Exception(f"Impossible de récupérer ou créer la table {table_name}.") from e
+            raise Exception(
+                f"Impossible de récupérer ou créer la table {table_name}."
+            ) from e
 
     @abstractmethod
     def execute(self, query: str) -> Any:
@@ -283,7 +285,7 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
     def name(self) -> str:
         """Retourne le nom de la table."""
         return self.vb_name
-    
+
     @property
     def primary_key(self) -> Column:
         """
@@ -294,13 +296,15 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         for column in self._columns:
             if column.primary_key:
                 return column
-        raise ValueError(f"Aucune colonne clé primaire n'existe dans la table {self.vb_name}.")
-    
+        raise ValueError(
+            f"Aucune colonne clé primaire n'existe dans la table {self.vb_name}."
+        )
+
     @property
     def columns(self) -> list[Column]:
         """Retourne les colonnes de la table."""
         return self._columns
-    
+
     def get_column(self, column_name: str) -> Column:
         """
         Retourne une colonne de la table.
@@ -311,8 +315,9 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         for column in self._columns:
             if column.name == column_name:
                 return column
-        raise ValueError(f"La colonne {column_name} n'existe pas dans la table {self.vb_name}.")
-
+        raise ValueError(
+            f"La colonne {column_name} n'existe pas dans la table {self.vb_name}."
+        )
 
 
 class Column:

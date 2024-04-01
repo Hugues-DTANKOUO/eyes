@@ -167,11 +167,11 @@ class SQLAlchemy(ORM):
         self._metadata.reflect(bind=self.engine)
 
     def get_or_create_table(
-            self,
-            table_name: str,
-            columns: list[ColumnMeta] | None = None,
-            ensure_exists: bool = False,
-        ) -> SQLAlchemy.Table:
+        self,
+        table_name: str,
+        columns: list[ColumnMeta] | None = None,
+        ensure_exists: bool = False,
+    ) -> SQLAlchemy.Table:
         """
         Récupère ou crée une table.
         :param table_name: Nom de la table.
@@ -189,7 +189,7 @@ class SQLAlchemy(ORM):
                     raise self.CreateTableError(
                         f"Impossible de créer la table {table_name}.\n"
                         "Aucune colonne n'a été spécifiée."
-                        )
+                    )
                 try:
                     has_primary_key = False
                     for column in columns:
@@ -214,12 +214,14 @@ class SQLAlchemy(ORM):
                             )
                             for column in columns
                         ],
-                        extend_existing=True
+                        extend_existing=True,
                     )
                     table.create(bind=self.engine, checkfirst=True)
                     return self.Table.create(table)
                 except Exception as e:
-                    raise self.CreateTableError(f"Impossible de créer la table {table_name}.") from e
+                    raise self.CreateTableError(
+                        f"Impossible de créer la table {table_name}."
+                    ) from e
             else:
                 raise self.NoSuchTableError(f"La table {table_name} n'existe pas.")
 

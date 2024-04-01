@@ -11,7 +11,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.11"
 models = { path = "../models", develop = true }
-black = "^24.2.0"
+black = {extras = ["jupyter"], version = "^24.3.0"}
 mypy = "^1.9.0"
 pytest = "^8.1.1"
 pydantic = "^2.6.4"

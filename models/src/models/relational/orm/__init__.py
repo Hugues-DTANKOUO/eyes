@@ -91,11 +91,11 @@ class ORM(ABC):
 
     @abstractmethod
     def get_or_create_table(
-            self,
-            table_name: str,
-            columns: list[ColumnMeta] | None = None,
-            ensure_exists: bool = False,
-        ) -> Table:
+        self,
+        table_name: str,
+        columns: list[ColumnMeta] | None = None,
+        ensure_exists: bool = False,
+    ) -> Table:
         """
         Récupère ou crée une table.
         :param table_name: Nom de la table.
