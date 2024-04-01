@@ -356,3 +356,47 @@ class Column:
     def __str__(self) -> str:
         """Retourne une représentation de la colonne."""
         return f"Colonne {self.name} de type {self.type.value} de la table {self.table.vb_name}"
+
+
+class ForeignKeyColumn(Column):
+    """
+    Représente une colonne de clé étrangère.
+
+    :param name: Nom de la colonne.
+    :param type: Type de la colonne.
+    :param length: Longueur de la colonne.
+    :param nullable: Indique si la colonne peut être nulle.
+    :param primary_key: Indique si la colonne est une clé primaire.
+    :param table: Table à laquelle appartient la colonne.
+    :param foreign_table: Table étrangère.
+    :param foreign_column: Colonne étrangère.
+    """
+
+    foreign_table: Table
+    foreign_column: Column
+
+    def __init__(
+        self,
+        meta_data: ColumnMeta,
+        table: Table,
+        foreign_table_name: str,
+        foreign_column_name: str,
+    ) -> None:
+        """
+        Constructeur de la colonne de clé étrangère.
+
+        :param meta_data: Métadonnées de la colonne.
+        :param table: Table à laquelle appartient la colonne.
+        :param foreign_table_name: Nom de la table étrangère.
+        :param foreign_column_name: Nom de la colonne étrangère.
+        """
+        super().__init__(meta_data, table)
+        self.foreign_table = Table(foreign_table_name, table.database)
+        self.foreign_column = self.foreign_table.get_column(foreign_column_name)
+
+    def __str__(self) -> str:
+        """Retourne une représentation de la colonne de clé étrangère."""
+        return (
+            f"Colonne {self.name} de type {self.type.value} de la table"
+            f" {self.table.vb_name} avec clé étrangère vers la table {self.foreign_table.vb_name}"
+        )
