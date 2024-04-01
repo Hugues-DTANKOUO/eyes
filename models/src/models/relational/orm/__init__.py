@@ -55,6 +55,13 @@ class ORM(ABC):
 
         pass
 
+    class CreateTableError(Exception):
+        """
+        Erreur de création de table.
+        """
+
+        pass
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
         Constructeur de la couche ORM pour SQLAlchemy.
@@ -83,21 +90,17 @@ class ORM(ABC):
         pass
 
     @abstractmethod
-    def get_table(self, table_name: str) -> Table:
+    def get_or_create_table(
+            self,
+            table_name: str,
+            columns: list[ColumnMeta] | None = None,
+            ensure_exists: bool = False,
+        ) -> Table:
         """
-        Retourne une table.
+        Récupère ou crée une table.
         :param table_name: Nom de la table.
-        :return: Table.
-        """
-
-        pass
-
-    @abstractmethod
-    def create_table(self, *args: Any, **kwargs: Any) -> Table:
-        """
-        Crée une table.
-        :param *args: Arguments.
-        :param **kwargs: Arguments nommés.
+        :param columns: Colonnes de la table.
+        :param ensure_exists: Assure l'existence de la table.
         :return: Table.
         """
 

@@ -166,46 +166,62 @@ class SQLAlchemy(ORM):
         self._metadata = MetaData()
         self._metadata.reflect(bind=self.engine)
 
-    def get_table(self, table_name: str) -> SQLAlchemy.Table:
+    def get_or_create_table(
+            self,
+            table_name: str,
+            columns: list[ColumnMeta] | None = None,
+            ensure_exists: bool = False,
+        ) -> SQLAlchemy.Table:
         """
-        Retourne une table.
+        Récupère ou crée une table.
         :param table_name: Nom de la table.
+        :param columns: Colonnes de la table.
+        :param ensure_exists: Assure l'existence de la table.
         :return: Table.
         """
         try:
-            table = Table(table_name, self._metadata, autoload_with=self.engine)
-            return self.Table.create(cast(Table, table))
-        except KeyError:
-            raise ValueError(f"La table {table_name} n'existe pas.")
-
-    def create_table(
-        self, table_name: str, columns: list[ColumnMeta]
-    ) -> SQLAlchemy.Table:
-        """
-        Crée une table.
-        :param table_name: Nom de la table.
-        :param columns: Colonnes de la table.
-        :return: Table.
-        """
-
-        table = Table(
-            table_name,
-            self._metadata,
-            *[
-                Column(
-                    column["name"],
-                    get_sqlalchemy_type(column["type"], column["length"]),
-                    nullable=column["nullable"],
-                    primary_key=column["primary_key"],
-                    unique=column["unique"],
-                )
-                for column in columns
-            ],
-        )
-
-        self._metadata.create_all(self.engine)
-
-        return self.Table.create(table)
+            return self.Table.create(
+                Table(table_name, self._metadata, autoload_with=self.engine)
+            )
+        except SQLAlchemyNoSuchTableError:
+            if ensure_exists:
+                if not columns:
+                    raise self.CreateTableError(
+                        f"Impossible de créer la table {table_name}.\n"
+                        "Aucune colonne n'a été spécifiée."
+                        )
+                try:
+                    has_primary_key = False
+                    for column in columns:
+                        if column["primary_key"]:
+                            has_primary_key = True
+                            break
+                    if not has_primary_key:
+                        raise self.CreateTableError(
+                            f"Impossible de créer la table {table_name}.\n"
+                            "Aucune colonne primaire n'a été spécifiée."
+                        )
+                    table = Table(
+                        table_name,
+                        self._metadata,
+                        *[
+                            Column(
+                                column["name"],
+                                get_sqlalchemy_type(column["type"], column["length"]),
+                                nullable=column["nullable"],
+                                primary_key=column["primary_key"],
+                                unique=column["unique"],
+                            )
+                            for column in columns
+                        ],
+                        extend_existing=True
+                    )
+                    table.create(bind=self.engine, checkfirst=True)
+                    return self.Table.create(table)
+                except Exception as e:
+                    raise self.CreateTableError(f"Impossible de créer la table {table_name}.") from e
+            else:
+                raise self.NoSuchTableError(f"La table {table_name} n'existe pas.")
 
     @staticmethod
     def get_no_such_table_error() -> Type[SQLAlchemyNoSuchTableError]:

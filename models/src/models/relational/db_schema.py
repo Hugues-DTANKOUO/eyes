@@ -74,34 +74,31 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         """Déconnecte de la base de données."""
         self._orm.close_session()
 
-    def get_table(self, table_name: str) -> Type[TABLE_ORM_TYPE]:
+    def get_or_create_orm_table(
+            self,
+            table_name: str,
+            columns: list[ColumnMeta] | None = None,
+            ensure_exists: bool = False,
+        ) -> Type[TABLE_ORM_TYPE]:
         """
-        Retourne les métadonnées d'une table.
-
-        :param table_name: Nom de la table.
-        :return: Métadonnées de la table.
-        """
-        try:
-            return cast(Type[TABLE_ORM_TYPE], self._orm.get_table(table_name))
-        except ValueError as e:
-            raise ValueError(e) from e
-
-    def create_table(
-        self, table_name: str, columns: list[ColumnMeta]
-    ) -> Type[TABLE_ORM_TYPE]:
-        """
-        Crée une table.
-
+        Récupère ou crée une table du type de la couche ORM.
         :param table_name: Nom de la table.
         :param columns: Colonnes de la table.
-        :return: Table créée.
+        :param ensure_exists: Assure l'existence de la table.
+        :return: Table.
         """
+
         try:
             return cast(
-                Type[TABLE_ORM_TYPE], self._orm.create_table(table_name, columns)
+                Type[TABLE_ORM_TYPE],
+                self._orm.get_or_create_table(table_name, columns, ensure_exists)
             )
+        except self._orm.NoSuchTableError as e:
+            raise self._orm.NoSuchTableError(e) from e
+        except self._orm.CreateTableError as e:
+            raise self._orm.CreateTableError(e) from e
         except Exception as e:
-            raise Exception(f"Impossible de créer la table : {e}.") from e
+            raise Exception(f"Impossible de récupérer ou créer la table {table_name}.") from e
 
     @abstractmethod
     def execute(self, query: str) -> Any:
@@ -245,7 +242,7 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
     db_name: str
     vb_name: str
     database: Database[ORM_TYPE, TABLE_ORM_TYPE]
-    columns: list[Column]
+    _columns: list[Column]
     link_table: Type[TABLE_ORM_TYPE]
 
     def __init__(
@@ -254,7 +251,6 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         database: Database[ORM_TYPE, TABLE_ORM_TYPE],
         columns: list[ColumnMeta] | None = None,
         ensure_exists: bool = True,
-        orm_class: Type[ORM_TYPE] = cast(Type[ORM_TYPE], ORM),
     ) -> None:
         """
         Constructeur de la table.
@@ -266,23 +262,18 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         """
 
         try:
-            table = database.get_table(name)
+            table = database.get_or_create_orm_table(name, columns, ensure_exists)
             self.db_name = table.name
             self.vb_name = name
             self.database = database
-            self.columns = [Column(column, self) for column in table.columns]
+            self._columns = [Column(column, self) for column in table.columns]
             self.link_table = cast(Type[TABLE_ORM_TYPE], table.link_table)
-        except orm_class.get_no_such_table_error() as e:
-            if ensure_exists:
-                raise orm_class.NoSuchTableError(e) from e
-            if columns is None:
-                raise ValueError("Les colonnes de la table sont obligatoires.")
-            table = database.create_table(name, columns)
-            self.db_name = table.name
-            self.vb_name = name
-            self.database = database
-            self.columns = [Column(column, self) for column in columns]
-            self.link_table = cast(Type[TABLE_ORM_TYPE], table.link_table)
+        except database._orm.NoSuchTableError as e:
+            raise database._orm.NoSuchTableError(e) from e
+        except database._orm.CreateTableError as e:
+            raise database._orm.CreateTableError(e) from e
+        except Exception as e:
+            raise Exception(f"Erreur lors de la création de la table {name}.") from e
 
     def __str__(self) -> str:
         """Retourne une représentation de la table."""
@@ -292,6 +283,36 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
     def name(self) -> str:
         """Retourne le nom de la table."""
         return self.vb_name
+    
+    @property
+    def primary_key(self) -> Column:
+        """
+        Retourne la colonne clé primaire de la table.
+
+        :return: Colonne clé primaire.
+        """
+        for column in self._columns:
+            if column.primary_key:
+                return column
+        raise ValueError(f"Aucune colonne clé primaire n'existe dans la table {self.vb_name}.")
+    
+    @property
+    def columns(self) -> list[Column]:
+        """Retourne les colonnes de la table."""
+        return self._columns
+    
+    def get_column(self, column_name: str) -> Column:
+        """
+        Retourne une colonne de la table.
+
+        :param column_name: Nom de la colonne.
+        :return: Colonne.
+        """
+        for column in self._columns:
+            if column.name == column_name:
+                return column
+        raise ValueError(f"La colonne {column_name} n'existe pas dans la table {self.vb_name}.")
+
 
 
 class Column:
