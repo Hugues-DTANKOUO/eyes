@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     Date,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.exc import NoSuchTableError as SQLAlchemyNoSuchTableError
 from typing import cast, Type
@@ -24,6 +25,7 @@ from models.relational.metadata import (
     ColumnType,
     ForeignKeyColumnMeta,
     ForeignKeyAction,
+    UniqueColumnsMeta,
 )
 from copy import deepcopy
 
@@ -150,6 +152,21 @@ class SQLAlchemy(ORM):
                     )
                 columns.append(column_meta)
             table_orm.columns = columns
+            unique_constraints: list[UniqueColumnsMeta] = []
+            for unique_constraint in table.constraints:
+                if (
+                    isinstance(unique_constraint, UniqueConstraint)
+                    and unique_constraint.columns.__len__() > 1
+                ):
+                    unique_constraints.append(
+                        UniqueColumnsMeta(
+                            name=str(unique_constraint.name or ""),
+                            columns=set(
+                                column.name for column in unique_constraint.columns
+                            ),
+                        )
+                    )
+            table_orm.unique_constraints = unique_constraints
 
             return table_orm
 
@@ -210,6 +227,29 @@ class SQLAlchemy(ORM):
 
             return column_orm
 
+    class UniqueConstraint(ORM.UniqueConstraint):
+        """
+        Classe de gestion des contraintes d'unicité.
+        """
+
+        link_constraint: UniqueConstraint
+
+        @staticmethod
+        def create(constraint: UniqueConstraint) -> SQLAlchemy.UniqueConstraint:
+            """
+            Crée une contrainte d'unicité.
+            :param constraint: Contrainte d'unicité à créer.
+            :return: Contrainte d'unicité.
+            """
+
+            constraint_orm = cast(SQLAlchemy.UniqueConstraint, constraint)
+
+            constraint_orm.link_constraint = deepcopy(constraint)
+            constraint_orm.name = str(constraint.name or "")
+            constraint_orm.columns = set(column.name for column in constraint.columns)
+
+            return constraint_orm
+
     class NoSuchTableError(SQLAlchemyNoSuchTableError):
         """
         Erreur de table inexistante.
@@ -231,12 +271,14 @@ class SQLAlchemy(ORM):
         self,
         table_name: str,
         columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
+        unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
         ensure_exists: bool = False,
     ) -> SQLAlchemy.Table:
         """
         Récupère ou crée une table.
         :param table_name: Nom de la table.
         :param columns: Colonnes de la table.
+        :param unique_constraints_columns: Contraintes d'unicité.
         :param ensure_exists: Assure l'existence de la table.
         :return: Table.
         """
@@ -293,6 +335,17 @@ class SQLAlchemy(ORM):
                                 )
                             )
                             for column in columns
+                        ],
+                        *[
+                            UniqueConstraint(
+                                *[
+                                    column.name
+                                    for column in columns
+                                    if column.name in unique_constraint.columns
+                                ],
+                                name=unique_constraint.name,
+                            )
+                            for unique_constraint in (unique_constraints_columns or [])
                         ],
                         extend_existing=True,
                     )

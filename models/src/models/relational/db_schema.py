@@ -16,7 +16,7 @@ Structure de base d'un modèle relationnel de données.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Generic, TypeVar, Type, cast
+from typing import Any, Generic, TypeVar, Type, cast, Sequence
 from abc import ABC, abstractmethod
 
 from models.relational.orm import ORM
@@ -26,6 +26,7 @@ from models.relational.metadata import (
     ColumnType,
     ForeignKeyColumnMeta,
     ForeignKeyAction,
+    UniqueColumnsMeta,
 )
 
 
@@ -84,12 +85,14 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         self,
         table_name: str,
         columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
+        unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
         ensure_exists: bool = False,
     ) -> Type[TABLE_ORM_TYPE]:
         """
         Récupère ou crée une table du type de la couche ORM.
         :param table_name: Nom de la table.
         :param columns: Colonnes de la table.
+        :param unique_constraints_columns: Contraintes d'unicité.
         :param ensure_exists: Assure l'existence de la table.
         :return: Table.
         """
@@ -97,7 +100,9 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         try:
             return cast(
                 Type[TABLE_ORM_TYPE],
-                self._orm.get_or_create_table(table_name, columns, ensure_exists),
+                self._orm.get_or_create_table(
+                    table_name, columns, unique_constraints_columns, ensure_exists
+                ),
             )
         except self._orm.NoSuchTableError as e:
             raise self._orm.NoSuchTableError(e) from e
@@ -245,12 +250,14 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
     :param name: Nom de la table.
     :param database: Base de données à laquelle appartient la table.
     :param columns: Colonnes de la table.
+    :param unique_contraints_columns: Liste des contraintes d'unicité.
     """
 
     db_name: str
     vb_name: str
     database: Database[ORM_TYPE, TABLE_ORM_TYPE]
     _columns: list[Column | ForeignKeyColumn]
+    _unique_constraints_columns: list[UniqueConstraint]
     link_table: Type[TABLE_ORM_TYPE]
 
     def __init__(
@@ -258,6 +265,7 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         name: str,
         database: Database[ORM_TYPE, TABLE_ORM_TYPE],
         columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
+        unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
         ensure_exists: bool = True,
     ) -> None:
         """
@@ -266,11 +274,14 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         :param name: Nom de la table.
         :param database: Base de données à laquelle appartient la table.
         :param columns: Colonnes de la table.
+        :param unique_constraints_columns: Contraintes d'unicité.
         :param ensure_exists: Indique si la table doit exister.
         """
 
         try:
-            table = database.get_or_create_orm_table(name, columns, ensure_exists)
+            table = database.get_or_create_orm_table(
+                name, columns, unique_constraints_columns, ensure_exists
+            )
             self.db_name = table.name
             self.vb_name = name
             self.database = database
@@ -281,6 +292,9 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
                     else Column(column, self)
                 )
                 for column in table.columns
+            ]
+            self._unique_constraints_columns = [
+                UniqueConstraint(unique, self) for unique in table.unique_constraints
             ]
             self.link_table = cast(Type[TABLE_ORM_TYPE], table.link_table)
         except database._orm.NoSuchTableError as e:
@@ -318,7 +332,12 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         """Retourne les colonnes de la table."""
         return self._columns
 
-    def get_column(self, column_name: str) -> Column:
+    @property
+    def unique_columns(self) -> list[UniqueConstraint]:
+        """Retourne les contraintes d'unicité de la table."""
+        return self._unique_constraints_columns
+
+    def get_column(self, column_name: str) -> Column | ForeignKeyColumn:
         """
         Retourne une colonne de la table.
 
@@ -412,4 +431,39 @@ class ForeignKeyColumn(Column):
         return (
             f"Colonne {self.name} de type {self.type.value} de la table"
             f" {self.table.vb_name} avec clé étrangère vers la table {self.foreign_table.vb_name}"
+        )
+
+
+class UniqueConstraint:
+    """
+    Représente une contrainte d'unicité sur une table.
+
+    :param name: Nom de la contrainte d'unicité.
+    :param table: Table à laquelle appartient la contrainte d'unicité.
+    :param columns: Colonnes de la contrainte d'unicité.
+    """
+
+    name: str
+    table: Table
+    columns: Sequence[Column | ForeignKeyColumn]
+
+    def __init__(self, meta_data: UniqueColumnsMeta, table: Table) -> None:
+        """
+        Constructeur de la contrainte d'unicité.
+
+        :param meta_data: Métadonnées de la contrainte d'unicité.
+        :param table: Table à laquelle appartient la contrainte d'unicité.
+        """
+
+        self.name = meta_data.name
+        self.table = table
+        self.columns = [
+            table.get_column(column_name) for column_name in meta_data.columns
+        ]
+
+    def __str__(self) -> str:
+        """Retourne une représentation de la contrainte d'unicité."""
+        return (
+            f"Contrainte d'unicité {self.name} sur la table {self.table.vb_name} pour les colonnes : "
+            + ", ".join(column.name for column in self.columns)
         )

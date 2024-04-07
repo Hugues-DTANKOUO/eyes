@@ -6,6 +6,8 @@ Méta-données d'un schéma de base de données.
     - ForeignKeyColumnMeta: Métadonnées d'une colonne de clé étrangère.
     - ColumnType: Types de colonnes.
     - DefaultDate: Types de dates par défaut.
+    - ForeignKeyAction: Actions de clé étrangère.
+    - UniqueColumnsMeta: Métadonnées des colonnes uniques.
 """
 
 from __future__ import annotations
@@ -245,3 +247,15 @@ class ForeignKeyColumnMeta(ColumnMeta):
     foreign_column_name: str
     on_delete: ForeignKeyAction = ForeignKeyAction.NO_ACTION
     on_update: ForeignKeyAction = ForeignKeyAction.NO_ACTION
+
+
+class UniqueColumnsMeta(BaseModel):
+    """
+    Métadonnées des colonnes uniques.
+
+    :param name: Nom de la contrainte.
+    :param columns: Colonnes uniques.
+    """
+
+    name: str
+    columns: set[str]

@@ -6,6 +6,7 @@ from models.relational.metadata import (
     ColumnMeta,
     ForeignKeyColumnMeta,
     ForeignKeyAction,
+    UniqueColumnsMeta,
 )
 
 
@@ -25,13 +26,14 @@ class ORM(ABC):
 
         - Attributs:
             - name: Nom de la table.
-            - link_table: Table liée.
+            - link_table: Table de l'ORM.
             - columns: Colonnes.
         """
 
         name: str
         link_table: Any
         columns: list[ColumnMeta | ForeignKeyColumnMeta]
+        unique_constraints: list[UniqueColumnsMeta]
 
     class Column(ABC):
         """
@@ -45,6 +47,7 @@ class ORM(ABC):
             - primary_key: Colonne clé primaire.
             - unique: Colonne unique.
             - default: Valeur par défaut de la colonne.
+            - link_column: Colonne de l'ORM.
         """
 
         name: str
@@ -78,6 +81,20 @@ class ORM(ABC):
         foreign_column_name: str
         on_delete: ForeignKeyAction = ForeignKeyAction.NO_ACTION
         on_update: ForeignKeyAction = ForeignKeyAction.NO_ACTION
+
+    class UniqueConstraint(ABC):
+        """
+        Classe de gestion des contraintes d'unicité.
+
+        - Attributs:
+            - name: Nom de la contrainte.
+            - columns: Colonnes.
+            - link_constraint: Contrainte de l'ORM.
+        """
+
+        name: str
+        columns: set[str]
+        link_constraint: Any
 
     class NoSuchTableError(Exception):
         """
@@ -125,12 +142,14 @@ class ORM(ABC):
         self,
         table_name: str,
         columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
+        unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
         ensure_exists: bool = False,
     ) -> Table:
         """
         Récupère ou crée une table.
         :param table_name: Nom de la table.
         :param columns: Colonnes de la table.
+        :param unique_constraints_columns: Contraintes d'unicité.
         :param ensure_exists: Assure l'existence de la table.
         :return: Table.
         """
