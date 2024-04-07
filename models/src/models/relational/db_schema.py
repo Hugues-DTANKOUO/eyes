@@ -21,7 +21,12 @@ from abc import ABC, abstractmethod
 
 from models.relational.orm import ORM
 from models.relational.config import DbConfig, DataBaseType
-from models.relational.metadata import ColumnMeta, ColumnType
+from models.relational.metadata import (
+    ColumnMeta,
+    ColumnType,
+    ForeignKeyColumnMeta,
+    ForeignKeyAction,
+)
 
 
 ORM_TYPE = TypeVar("ORM_TYPE", bound=ORM)
@@ -78,7 +83,7 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
     def get_or_create_orm_table(
         self,
         table_name: str,
-        columns: list[ColumnMeta] | None = None,
+        columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
         ensure_exists: bool = False,
     ) -> Type[TABLE_ORM_TYPE]:
         """
@@ -245,14 +250,14 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
     db_name: str
     vb_name: str
     database: Database[ORM_TYPE, TABLE_ORM_TYPE]
-    _columns: list[Column]
+    _columns: list[Column | ForeignKeyColumn]
     link_table: Type[TABLE_ORM_TYPE]
 
     def __init__(
         self,
         name: str,
         database: Database[ORM_TYPE, TABLE_ORM_TYPE],
-        columns: list[ColumnMeta] | None = None,
+        columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
         ensure_exists: bool = True,
     ) -> None:
         """
@@ -269,7 +274,14 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
             self.db_name = table.name
             self.vb_name = name
             self.database = database
-            self._columns = [Column(column, self) for column in table.columns]
+            self._columns = [
+                (
+                    ForeignKeyColumn(column, self)
+                    if isinstance(column, ForeignKeyColumnMeta)
+                    else Column(column, self)
+                )
+                for column in table.columns
+            ]
             self.link_table = cast(Type[TABLE_ORM_TYPE], table.link_table)
         except database._orm.NoSuchTableError as e:
             raise database._orm.NoSuchTableError(e) from e
@@ -347,11 +359,11 @@ class Column:
         :param meta_data: Métadonnées de la colonne.
         :param table: Table à laquelle appartient la colonne.
         """
-        self.name = meta_data["name"]
-        self.type = meta_data["type"]
-        self.length = meta_data["length"]
-        self.nullable = meta_data["nullable"]
-        self.primary_key = meta_data["primary_key"]
+        self.name = meta_data.name
+        self.type = meta_data.type
+        self.length = meta_data.length
+        self.nullable = meta_data.nullable
+        self.primary_key = meta_data.primary_key
         self.table = table
 
     def __str__(self) -> str:
@@ -371,29 +383,29 @@ class ForeignKeyColumn(Column):
     :param table: Table à laquelle appartient la colonne.
     :param foreign_table: Table étrangère.
     :param foreign_column: Colonne étrangère.
+    :param on_delete: Action sur suppression.
+    :param on_update: Action sur mise à jour.
     """
 
     foreign_table: Table
     foreign_column: Column
+    on_delete: ForeignKeyAction = ForeignKeyAction.NO_ACTION
+    on_update: ForeignKeyAction = ForeignKeyAction.NO_ACTION
 
-    def __init__(
-        self,
-        meta_data: ColumnMeta,
-        table: Table,
-        foreign_table_name: str,
-        foreign_column_name: str,
-    ) -> None:
+    def __init__(self, meta_data: ForeignKeyColumnMeta, table: Table) -> None:
         """
         Constructeur de la colonne de clé étrangère.
 
         :param meta_data: Métadonnées de la colonne.
         :param table: Table à laquelle appartient la colonne.
-        :param foreign_table_name: Nom de la table étrangère.
-        :param foreign_column_name: Nom de la colonne étrangère.
         """
         super().__init__(meta_data, table)
-        self.foreign_table = Table(foreign_table_name, table.database)
-        self.foreign_column = self.foreign_table.get_column(foreign_column_name)
+        self.foreign_table = Table(meta_data.foreign_table_name, table.database)
+        self.foreign_column = self.foreign_table.get_column(
+            meta_data.foreign_column_name
+        )
+        self.on_delete = meta_data.on_delete
+        self.on_update = meta_data.on_update
 
     def __str__(self) -> str:
         """Retourne une représentation de la colonne de clé étrangère."""

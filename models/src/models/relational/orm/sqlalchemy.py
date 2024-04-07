@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Boolean,
     Float,
+    ForeignKey,
     Date,
     Text,
 )
@@ -18,7 +19,12 @@ from sqlalchemy.exc import NoSuchTableError as SQLAlchemyNoSuchTableError
 from typing import cast, Type
 
 from models.relational.orm import ORM
-from models.relational.metadata import ColumnMeta, ColumnType
+from models.relational.metadata import (
+    ColumnMeta,
+    ColumnType,
+    ForeignKeyColumnMeta,
+    ForeignKeyAction,
+)
 from copy import deepcopy
 
 
@@ -99,7 +105,7 @@ class SQLAlchemy(ORM):
 
         link_table: Table
         name: str
-        columns: list[ColumnMeta]
+        columns: list[ColumnMeta | ForeignKeyColumnMeta]
 
         @staticmethod
         def create(table: Table) -> SQLAlchemy.Table:
@@ -111,17 +117,39 @@ class SQLAlchemy(ORM):
 
             table_orm = cast(SQLAlchemy.Table, table)
             table_orm.link_table = deepcopy(table)
-            table_orm.columns = [
-                {
-                    "name": column.name,
-                    "type": get_column_type(cast(type, column.type)),
-                    "length": getattr(column.type, "length", None),
-                    "nullable": column.nullable or False,
-                    "primary_key": column.primary_key,
-                    "unique": column.unique or False,
-                }
-                for column in table.columns
-            ]
+            columns: list[ColumnMeta | ForeignKeyColumnMeta] = []
+            for column in table.columns:
+                column_meta = ColumnMeta(
+                    name=column.name,
+                    type=get_column_type(cast(type, column.type)),
+                    length=getattr(column.type, "length", None),
+                    nullable=column.nullable or False,
+                    primary_key=column.primary_key,
+                    unique=column.unique or False,
+                    default=column.default,
+                )
+                if column.foreign_keys:
+                    column_meta = ForeignKeyColumnMeta(
+                        name=column.name,
+                        type=get_column_type(cast(type, column.type)),
+                        length=getattr(column.type, "length", None),
+                        nullable=column.nullable or False,
+                        primary_key=column.primary_key,
+                        unique=column.unique or False,
+                        default=column.default,
+                        foreign_table_name=next(
+                            iter(column.foreign_keys)
+                        ).column.table.name,
+                        foreign_column_name=next(iter(column.foreign_keys)).column.name,
+                        on_delete=ForeignKeyAction.create(
+                            next(iter(column.foreign_keys)).ondelete or ""
+                        ),
+                        on_update=ForeignKeyAction.create(
+                            next(iter(column.foreign_keys)).onupdate or ""
+                        ),
+                    )
+                columns.append(column_meta)
+            table_orm.columns = columns
 
             return table_orm
 
@@ -129,6 +157,8 @@ class SQLAlchemy(ORM):
         """
         Classe de gestion des colonnes.
         """
+
+        link_column: Column
 
         @staticmethod
         def create(column: Column) -> SQLAlchemy.Column:
@@ -140,12 +170,43 @@ class SQLAlchemy(ORM):
 
             column_orm = cast(SQLAlchemy.Column, column)
 
+            column_orm.link_column = deepcopy(column)
+
             column_orm.name = str(column["name"])
             column_orm.type = cast(ColumnType, column["type"])
             column_orm.length = int(column["length"])
             column_orm.nullable = bool(column["nullable"])
             column_orm.primary_key = bool(column["primary_key"])
             column_orm.unique = bool(column["unique"])
+            column_orm.default = column["default"]
+
+            return column_orm
+
+    class ForeignKeyColumn(ORM.ForeignKeyColumn):
+        """
+        Classe de gestion des colonnes de clé étrangère.
+        """
+
+        link_column: Column
+
+        @staticmethod
+        def create(column: Column) -> SQLAlchemy.ForeignKeyColumn:
+            """
+            Crée une colonne.
+            :param column: Colonne à créer.
+            :return: Colonne.
+            """
+
+            column_orm = cast(
+                SQLAlchemy.ForeignKeyColumn, SQLAlchemy.Column.create(column)
+            )
+
+            foreign_key = next(iter(column_orm.link_column.foreign_keys))
+
+            column_orm.foreign_table_name = foreign_key.column.table.name
+            column_orm.foreign_column_name = foreign_key.column.name
+            column_orm.on_delete = ForeignKeyAction.create(foreign_key.ondelete or "")
+            column_orm.on_update = ForeignKeyAction.create(foreign_key.onupdate or "")
 
             return column_orm
 
@@ -169,7 +230,7 @@ class SQLAlchemy(ORM):
     def get_or_create_table(
         self,
         table_name: str,
-        columns: list[ColumnMeta] | None = None,
+        columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
         ensure_exists: bool = False,
     ) -> SQLAlchemy.Table:
         """
@@ -193,7 +254,7 @@ class SQLAlchemy(ORM):
                 try:
                     has_primary_key = False
                     for column in columns:
-                        if column["primary_key"]:
+                        if column.primary_key:
                             has_primary_key = True
                             break
                     if not has_primary_key:
@@ -205,12 +266,31 @@ class SQLAlchemy(ORM):
                         table_name,
                         self._metadata,
                         *[
-                            Column(
-                                column["name"],
-                                get_sqlalchemy_type(column["type"], column["length"]),
-                                nullable=column["nullable"],
-                                primary_key=column["primary_key"],
-                                unique=column["unique"],
+                            (
+                                Column(
+                                    column.name,
+                                    get_sqlalchemy_type(column.type, column.length),
+                                    ForeignKey(
+                                        column.foreign_table_name
+                                        + "."
+                                        + column.foreign_column_name,
+                                        ondelete=column.on_delete.value,
+                                        onupdate=column.on_update.value,
+                                    ),
+                                    nullable=column.nullable,
+                                    primary_key=column.primary_key,
+                                    unique=column.unique,
+                                    default=column.default,
+                                )
+                                if isinstance(column, ForeignKeyColumnMeta)
+                                else Column(
+                                    column.name,
+                                    get_sqlalchemy_type(column.type, column.length),
+                                    nullable=column.nullable,
+                                    primary_key=column.primary_key,
+                                    unique=column.unique,
+                                    default=column.default,
+                                )
                             )
                             for column in columns
                         ],

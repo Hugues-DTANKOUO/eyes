@@ -1,7 +1,12 @@
 from abc import ABC, abstractmethod
 from typing import Any, Type
 
-from models.relational.metadata import ColumnType, ColumnMeta
+from models.relational.metadata import (
+    ColumnType,
+    ColumnMeta,
+    ForeignKeyColumnMeta,
+    ForeignKeyAction,
+)
 
 
 class ORM(ABC):
@@ -26,7 +31,7 @@ class ORM(ABC):
 
         name: str
         link_table: Any
-        columns: list[ColumnMeta]
+        columns: list[ColumnMeta | ForeignKeyColumnMeta]
 
     class Column(ABC):
         """
@@ -39,6 +44,7 @@ class ORM(ABC):
             - nullable: Colonne nullable.
             - primary_key: Colonne clé primaire.
             - unique: Colonne unique.
+            - default: Valeur par défaut de la colonne.
         """
 
         name: str
@@ -47,6 +53,31 @@ class ORM(ABC):
         nullable: bool
         primary_key: bool
         unique: bool
+        default: Any
+        link_column: Any
+
+    class ForeignKeyColumn(Column):
+        """
+        Classe de gestion des colonnes de clé étrangère.
+
+        - Attributs:
+            - name: Nom de la colonne.
+            - type: Type de la colonne.
+            - length: Longueur de la colonne.
+            - nullable: Colonne nullable.
+            - primary_key: Colonne clé primaire.
+            - unique: Colonne unique.
+            - default: Valeur par défaut de la colonne.
+            - foreign_table_name: Nom de la table étrangère.
+            - foreign_column_name: Nom de la colonne étrangère.
+            - on_delete: Action de suppression.
+            - on_update: Action de mise à jour.
+        """
+
+        foreign_table_name: str
+        foreign_column_name: str
+        on_delete: ForeignKeyAction = ForeignKeyAction.NO_ACTION
+        on_update: ForeignKeyAction = ForeignKeyAction.NO_ACTION
 
     class NoSuchTableError(Exception):
         """
@@ -93,7 +124,7 @@ class ORM(ABC):
     def get_or_create_table(
         self,
         table_name: str,
-        columns: list[ColumnMeta] | None = None,
+        columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
         ensure_exists: bool = False,
     ) -> Table:
         """
