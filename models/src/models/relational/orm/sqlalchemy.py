@@ -17,7 +17,8 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.exc import NoSuchTableError as SQLAlchemyNoSuchTableError
-from typing import cast, Type
+from sqlalchemy.sql.schema import DefaultClause
+from typing import cast, Type, Any
 
 from models.relational.orm import ORM
 from models.relational.metadata import (
@@ -48,7 +49,7 @@ def get_sqlalchemy_type(column_type: ColumnType, column_length: int | None) -> t
         ColumnType.TEXT: (
             cast(type, Text)
             if column_length is None
-            else cast(type, Text(column_length))
+            else cast(type, String(column_length))
         ),
         ColumnType.DATE: cast(type, Date),
         ColumnType.DATETIME: cast(type, DateTime),
@@ -77,6 +78,37 @@ def get_column_type(column_type: type) -> ColumnType:
     }[column_type_str]
 
 
+def cast_default(default: Any | None, column_type: type) -> Any:
+    """
+    Convertit la valeur par défaut d'une colonne.
+    :param default: Valeur par défaut.
+    :param column_type: Type de la colonne.
+    :return: Valeur par défaut.
+    """
+
+    column_type_str = str(column_type).split("(")[0]
+
+    if default is None:
+        return None
+
+    try:
+        if column_type_str == "INTEGER":
+            return int(default)
+        elif (
+            column_type_str == "VARCHAR"
+            or column_type_str == "TEXT"
+            or column_type_str == "DATETIME"
+            or column_type_str == "DATE"
+        ):
+            return str(default)
+        elif column_type_str == "BOOLEAN":
+            return bool(default)
+        elif column_type_str == "DECIMAL":
+            return float(default)
+    except Exception:
+        return None
+
+
 class SQLAlchemy(ORM):
     """
     Classe de gestion de la couche ORM pour SQLAlchemy.
@@ -102,12 +134,12 @@ class SQLAlchemy(ORM):
         - Attributs:
             - link_table: Table liée.
             - name: Nom de la table.
-            - columns: Colonnes.
+            - columns_meta: Métadonnées des colonnes.
         """
 
         link_table: Table
         name: str
-        columns: list[ColumnMeta | ForeignKeyColumnMeta]
+        columns_meta: list[ColumnMeta | ForeignKeyColumnMeta]
 
         @staticmethod
         def create(table: Table) -> SQLAlchemy.Table:
@@ -128,7 +160,18 @@ class SQLAlchemy(ORM):
                     nullable=column.nullable or False,
                     primary_key=column.primary_key,
                     unique=column.unique or False,
-                    default=column.default,
+                    default=(
+                        cast_default(
+                            getattr(
+                                column.server_default.arg,
+                                "text",
+                                column.server_default.arg,
+                            ),
+                            cast(type, column.type),
+                        )
+                        if isinstance(column.server_default, DefaultClause)
+                        else None
+                    ),
                 )
                 if column.foreign_keys:
                     column_meta = ForeignKeyColumnMeta(
@@ -138,7 +181,18 @@ class SQLAlchemy(ORM):
                         nullable=column.nullable or False,
                         primary_key=column.primary_key,
                         unique=column.unique or False,
-                        default=column.default,
+                        default=(
+                            cast_default(
+                                getattr(
+                                    column.server_default.arg,
+                                    "text",
+                                    column.server_default.arg,
+                                ),
+                                cast(type, column.type),
+                            )
+                            if isinstance(column.server_default, DefaultClause)
+                            else None
+                        ),
                         foreign_table_name=next(
                             iter(column.foreign_keys)
                         ).column.table.name,
@@ -151,21 +205,29 @@ class SQLAlchemy(ORM):
                         ),
                     )
                 columns.append(column_meta)
-            table_orm.columns = columns
+            table_orm.columns_meta = columns
             unique_constraints: list[UniqueColumnsMeta] = []
             for unique_constraint in table.constraints:
                 if (
                     isinstance(unique_constraint, UniqueConstraint)
-                    and unique_constraint.columns.__len__() > 1
+                    and unique_constraint.columns.__len__()
                 ):
-                    unique_constraints.append(
-                        UniqueColumnsMeta(
-                            name=str(unique_constraint.name or ""),
-                            columns=set(
-                                column.name for column in unique_constraint.columns
-                            ),
+                    if unique_constraint.columns.__len__() == 1:
+                        for column_meta in table_orm.columns_meta:
+                            if (
+                                column_meta.name
+                                == next(iter(unique_constraint.columns)).name
+                            ):
+                                column_meta.unique = True
+                    else:
+                        unique_constraints.append(
+                            UniqueColumnsMeta(
+                                name=str(unique_constraint.name or ""),
+                                columns=set(
+                                    column.name for column in unique_constraint.columns
+                                ),
+                            )
                         )
-                    )
             table_orm.unique_constraints = unique_constraints
 
             return table_orm
@@ -189,13 +251,22 @@ class SQLAlchemy(ORM):
 
             column_orm.link_column = deepcopy(column)
 
-            column_orm.name = str(column["name"])
-            column_orm.type = cast(ColumnType, column["type"])
-            column_orm.length = int(column["length"])
-            column_orm.nullable = bool(column["nullable"])
-            column_orm.primary_key = bool(column["primary_key"])
-            column_orm.unique = bool(column["unique"])
-            column_orm.default = column["default"]
+            column_orm.name = column.name
+            column_orm.type = cast(ColumnType, column.type)
+            column_orm.length = int(getattr(column.type, "length", None) or 0) or None
+            column_orm.nullable = column.nullable or False
+            column_orm.primary_key = column.primary_key
+            column_orm.unique = column.unique or False
+            column_orm.default = (
+                cast_default(
+                    getattr(
+                        column.server_default.arg, "text", column.server_default.arg
+                    ),
+                    cast(type, column.type),
+                )
+                if isinstance(column.server_default, DefaultClause)
+                else None
+            )
 
             return column_orm
 
@@ -267,96 +338,103 @@ class SQLAlchemy(ORM):
         self._metadata = MetaData()
         self._metadata.reflect(bind=self.engine)
 
-    def get_or_create_table(
+    def create_table(
         self,
         table_name: str,
-        columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
+        columns: list[ColumnMeta | ForeignKeyColumnMeta],
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
-        ensure_exists: bool = False,
     ) -> SQLAlchemy.Table:
         """
         Récupère ou crée une table.
         :param table_name: Nom de la table.
         :param columns: Colonnes de la table.
         :param unique_constraints_columns: Contraintes d'unicité.
-        :param ensure_exists: Assure l'existence de la table.
         :return: Table.
         """
         try:
-            return self.Table.create(
-                Table(table_name, self._metadata, autoload_with=self.engine)
-            )
-        except SQLAlchemyNoSuchTableError:
-            if ensure_exists:
-                if not columns:
-                    raise self.CreateTableError(
-                        f"Impossible de créer la table {table_name}.\n"
-                        "Aucune colonne n'a été spécifiée."
-                    )
-                try:
-                    has_primary_key = False
-                    for column in columns:
-                        if column.primary_key:
-                            has_primary_key = True
-                            break
-                    if not has_primary_key:
-                        raise self.CreateTableError(
-                            f"Impossible de créer la table {table_name}.\n"
-                            "Aucune colonne primaire n'a été spécifiée."
+            has_primary_key = False
+            for column in columns:
+                if column.primary_key:
+                    has_primary_key = True
+                    break
+            if not has_primary_key:
+                raise self.CreateTableError(
+                    f"Impossible de créer la table {table_name}.\n"
+                    "Aucune colonne primaire n'a été spécifiée."
+                )
+            table = Table(
+                table_name,
+                self._metadata,
+                *[
+                    (
+                        Column(
+                            column.name,
+                            get_sqlalchemy_type(column.type, column.length),
+                            ForeignKey(
+                                column.foreign_table_name
+                                + "."
+                                + column.foreign_column_name,
+                                ondelete=column.on_delete.value,
+                                onupdate=column.on_update.value,
+                            ),
+                            nullable=column.nullable,
+                            primary_key=column.primary_key,
+                            unique=column.unique,
+                            server_default=column.default,
                         )
-                    table = Table(
-                        table_name,
-                        self._metadata,
-                        *[
-                            (
-                                Column(
-                                    column.name,
-                                    get_sqlalchemy_type(column.type, column.length),
-                                    ForeignKey(
-                                        column.foreign_table_name
-                                        + "."
-                                        + column.foreign_column_name,
-                                        ondelete=column.on_delete.value,
-                                        onupdate=column.on_update.value,
-                                    ),
-                                    nullable=column.nullable,
-                                    primary_key=column.primary_key,
-                                    unique=column.unique,
-                                    default=column.default,
-                                )
-                                if isinstance(column, ForeignKeyColumnMeta)
-                                else Column(
-                                    column.name,
-                                    get_sqlalchemy_type(column.type, column.length),
-                                    nullable=column.nullable,
-                                    primary_key=column.primary_key,
-                                    unique=column.unique,
-                                    default=column.default,
-                                )
-                            )
-                            for column in columns
-                        ],
-                        *[
-                            UniqueConstraint(
-                                *[
-                                    column.name
-                                    for column in columns
-                                    if column.name in unique_constraint.columns
-                                ],
-                                name=unique_constraint.name,
-                            )
-                            for unique_constraint in (unique_constraints_columns or [])
-                        ],
-                        extend_existing=True,
+                        if isinstance(column, ForeignKeyColumnMeta)
+                        else Column(
+                            column.name,
+                            get_sqlalchemy_type(column.type, column.length),
+                            nullable=column.nullable,
+                            primary_key=column.primary_key,
+                            unique=column.unique,
+                            server_default=column.default,
+                        )
                     )
-                    table.create(bind=self.engine, checkfirst=True)
-                    return self.Table.create(table)
-                except Exception as e:
-                    raise self.CreateTableError(
-                        f"Impossible de créer la table {table_name}."
-                    ) from e
-            else:
-                raise self.NoSuchTableError(f"La table {table_name} n'existe pas.")
+                    for column in columns
+                ],
+                *[
+                    UniqueConstraint(
+                        *[
+                            column.name
+                            for column in columns
+                            if column.name in unique_constraint.columns
+                        ],
+                        name=unique_constraint.name,
+                    )
+                    for unique_constraint in (unique_constraints_columns or [])
+                ],
+                extend_existing=True,
+            )
+            table.create(bind=self.engine, checkfirst=True)
+            return self.Table.create(table)
+        except Exception as e:
+            raise self.CreateTableError(
+                f"Impossible de créer la table {table_name}."
+            ) from e
+
+    def get_tables(self) -> dict[str, ORM.Table]:
+        """
+        Récupère les tables de la base de données.
+        :return: Tables.
+        """
+
+        return {
+            table_name: self.Table.create(table)
+            for table_name, table in self._metadata.tables.items()
+        }
+
+    def get_table(self, table_name: str) -> SQLAlchemy.Table:
+        """
+        Récupère une table de la base de données.
+        :param table_name: Nom de la table.
+        :return: Table.
+        """
+
+        if table_name not in self._metadata.tables:
+            raise self.NoSuchTableError(f"La table {table_name} n'existe pas.")
+        return self.Table.create(self._metadata.tables[table_name])
 
     @staticmethod
     def get_no_such_table_error() -> Type[SQLAlchemyNoSuchTableError]:

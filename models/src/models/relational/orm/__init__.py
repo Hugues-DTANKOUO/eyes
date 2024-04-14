@@ -27,12 +27,12 @@ class ORM(ABC):
         - Attributs:
             - name: Nom de la table.
             - link_table: Table de l'ORM.
-            - columns: Colonnes.
+            - columns_meta: Métadonnées des colonnes.
         """
 
         name: str
         link_table: Any
-        columns: list[ColumnMeta | ForeignKeyColumnMeta]
+        columns_meta: list[ColumnMeta | ForeignKeyColumnMeta]
         unique_constraints: list[UniqueColumnsMeta]
 
     class Column(ABC):
@@ -52,7 +52,7 @@ class ORM(ABC):
 
         name: str
         type: ColumnType
-        length: int
+        length: int | None
         nullable: bool
         primary_key: bool
         unique: bool
@@ -138,19 +138,36 @@ class ORM(ABC):
         pass
 
     @abstractmethod
-    def get_or_create_table(
+    def create_table(
         self,
         table_name: str,
-        columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
+        columns: list[ColumnMeta | ForeignKeyColumnMeta],
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
-        ensure_exists: bool = False,
     ) -> Table:
         """
         Récupère ou crée une table.
         :param table_name: Nom de la table.
         :param columns: Colonnes de la table.
         :param unique_constraints_columns: Contraintes d'unicité.
-        :param ensure_exists: Assure l'existence de la table.
+        :return: Table.
+        """
+
+        pass
+
+    @abstractmethod
+    def get_tables(self) -> dict[str, Table]:
+        """
+        Récupère les tables de la base de données.
+        :return: Tables.
+        """
+
+        pass
+
+    @abstractmethod
+    def get_table(self, table_name: str) -> Table:
+        """
+        Récupère une table de la base de données.
+        :param table_name: Nom de la table.
         :return: Table.
         """
 

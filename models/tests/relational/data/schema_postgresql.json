@@ -1,0 +1,133 @@
+{
+    "name": "test",
+    "type": "postgresql",
+    "tables": {
+        "Business": {
+            "name": "Business",
+            "columns": {
+                "Id": {
+                    "name": "Id",
+                    "type": "INT",
+                    "length": null,
+                    "nullable": false,
+                    "primary_key": true,
+                    "unique": false,
+                    "default": null
+                },
+                "Name": {
+                    "name": "Name",
+                    "type": "VARCHAR",
+                    "length": 100,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": null
+                },
+                "Location": {
+                    "name": "Location",
+                    "type": "VARCHAR",
+                    "length": 100,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": null
+                }
+            },
+            "unique_columns": {}
+        },
+        "test_table": {
+            "name": "test_table",
+            "columns": {
+                "Id": {
+                    "name": "Id",
+                    "type": "INT",
+                    "length": null,
+                    "nullable": false,
+                    "primary_key": true,
+                    "unique": false,
+                    "default": null
+                },
+                "Age": {
+                    "name": "Age",
+                    "type": "INT",
+                    "length": null,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": 25
+                }
+            },
+            "unique_columns": {}
+        },
+        "Schools": {
+            "name": "Schools",
+            "columns": {
+                "Id": {
+                    "name": "Id",
+                    "type": "INT",
+                    "length": null,
+                    "nullable": false,
+                    "primary_key": true,
+                    "unique": true,
+                    "default": null
+                },
+                "Name": {
+                    "name": "Name",
+                    "type": "VARCHAR",
+                    "length": 100,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": "ENSP Yaounde"
+                },
+                "Location": {
+                    "name": "Location",
+                    "type": "VARCHAR",
+                    "length": 100,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": null
+                }
+            },
+            "unique_columns": {}
+        },
+        "Students": {
+            "name": "Students",
+            "columns": {
+                "Id": {
+                    "name": "Id",
+                    "type": "INT",
+                    "length": null,
+                    "nullable": false,
+                    "primary_key": true,
+                    "unique": true,
+                    "default": null
+                },
+                "Name": {
+                    "name": "Name",
+                    "type": "VARCHAR",
+                    "length": 100,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": null
+                },
+                "SchoolId": {
+                    "name": "SchoolId",
+                    "type": "INT",
+                    "length": null,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": null,
+                    "foreign_table": "Schools",
+                    "foreign_column": "Id",
+                    "on_delete": "CASCADE",
+                    "on_update": "CASCADE"
+                }
+            },
+            "unique_columns": {}
+        }
+    }
+}

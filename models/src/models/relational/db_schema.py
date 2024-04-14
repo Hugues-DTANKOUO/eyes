@@ -18,6 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Generic, TypeVar, Type, cast, Sequence
 from abc import ABC, abstractmethod
+import json
 
 from models.relational.orm import ORM
 from models.relational.config import DbConfig, DataBaseType
@@ -27,6 +28,7 @@ from models.relational.metadata import (
     ForeignKeyColumnMeta,
     ForeignKeyAction,
     UniqueColumnsMeta,
+    DatabaseMetaDict,
 )
 
 
@@ -42,12 +44,14 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
     :param _name: Nom de la base de données.
     :param _type: Type de la base de données.
     :param _orm: Couche ORM de la base de données.
+    :param tables: Tables de la base de données.
     """
 
     _engine_url: str
     _name: str
     _type: DataBaseType
     _orm: ORM_TYPE
+    tables: dict[str, Type[TABLE_ORM_TYPE]]
 
     def __init__(self, db_config: DbConfig | Path, orm_class_: Type[ORM_TYPE]) -> None:
         """
@@ -71,6 +75,7 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         else:
             raise ValueError("La configuration de la base de données est invalide.")
         self._orm = orm_class_(self._engine_url)
+        self._get_orm_tables()
 
     @property
     def name(self) -> str:
@@ -81,31 +86,53 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         """Déconnecte de la base de données."""
         self._orm.close_session()
 
-    def get_or_create_orm_table(
+    def get_orm_table(self, table_name: str) -> Type[TABLE_ORM_TYPE]:
+        """
+        Récupère une table du type de la couche ORM.
+
+        :param table_name: Nom de la table.
+        :return: Table.
+        """
+        try:
+            return cast(Type[TABLE_ORM_TYPE], self._orm.get_table(table_name))
+        except self._orm.NoSuchTableError as e:
+            raise self._orm.NoSuchTableError(e) from e
+        except Exception as e:
+            raise Exception(f"Impossible de récupérer la table {table_name}.") from e
+
+    def _get_orm_tables(self) -> None:
+        """
+        Récupère les tables du type de la couche ORM.
+        """
+        try:
+            self.tables = {
+                table_name: cast(Type[TABLE_ORM_TYPE], table)
+                for table_name, table in self._orm.get_tables().items()
+            }
+        except Exception as e:
+            raise Exception("Impossible de récupérer les tables.") from e
+
+    def create_orm_table(
         self,
         table_name: str,
-        columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
+        columns: list[ColumnMeta | ForeignKeyColumnMeta],
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
-        ensure_exists: bool = False,
     ) -> Type[TABLE_ORM_TYPE]:
         """
         Récupère ou crée une table du type de la couche ORM.
         :param table_name: Nom de la table.
         :param columns: Colonnes de la table.
         :param unique_constraints_columns: Contraintes d'unicité.
-        :param ensure_exists: Assure l'existence de la table.
         :return: Table.
         """
 
         try:
-            return cast(
+            table = cast(
                 Type[TABLE_ORM_TYPE],
-                self._orm.get_or_create_table(
-                    table_name, columns, unique_constraints_columns, ensure_exists
-                ),
+                self._orm.create_table(table_name, columns, unique_constraints_columns),
             )
-        except self._orm.NoSuchTableError as e:
-            raise self._orm.NoSuchTableError(e) from e
+            self.tables[table_name] = table
+            return table
         except self._orm.CreateTableError as e:
             raise self._orm.CreateTableError(e) from e
         except Exception as e:
@@ -122,6 +149,40 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         :return: Résultat de la requête.
         """
         pass
+
+    def get_schema(self) -> DatabaseMetaDict:
+        """
+        Récupère le schéma de la base de données.
+
+        :return: Schéma de la base de données.
+        """
+
+        return {
+            "name": self._name,
+            "type": self._type.value,
+            "tables": {
+                table_name: {
+                    "name": table_name,
+                    "columns": {
+                        column.name: column.get_dict() for column in table.columns_meta
+                    },
+                    "unique_columns": {
+                        unique.name: unique.columns
+                        for unique in table.unique_constraints
+                    },
+                }
+                for table_name, table in self.tables.items()
+            },
+        }
+
+    def save_schema(self, path: Path) -> None:
+        """
+        Enregistre le schéma de la base de données dans un fichier JSON.
+
+        :param path: Chemin du fichier JSON.
+        """
+        with open(path, "w", encoding="latin1") as file:
+            json.dump(self.get_schema(), file, indent=4)
 
 
 class SQLite(Database[ORM_TYPE, TABLE_ORM_TYPE]):
@@ -266,7 +327,6 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         database: Database[ORM_TYPE, TABLE_ORM_TYPE],
         columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
-        ensure_exists: bool = True,
     ) -> None:
         """
         Constructeur de la table.
@@ -275,13 +335,18 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
         :param database: Base de données à laquelle appartient la table.
         :param columns: Colonnes de la table.
         :param unique_constraints_columns: Contraintes d'unicité.
-        :param ensure_exists: Indique si la table doit exister.
         """
 
         try:
-            table = database.get_or_create_orm_table(
-                name, columns, unique_constraints_columns, ensure_exists
-            )
+            if columns is not None:
+                if name in database.tables:
+                    table = database.tables[name]
+                else:
+                    table = database.create_orm_table(
+                        name, columns, unique_constraints_columns
+                    )
+            else:
+                table = database.get_orm_table(name)
             self.db_name = table.name
             self.vb_name = name
             self.database = database
@@ -291,7 +356,7 @@ class Table(Generic[ORM_TYPE, TABLE_ORM_TYPE]):
                     if isinstance(column, ForeignKeyColumnMeta)
                     else Column(column, self)
                 )
-                for column in table.columns
+                for column in table.columns_meta
             ]
             self._unique_constraints_columns = [
                 UniqueConstraint(unique, self) for unique in table.unique_constraints
@@ -361,6 +426,7 @@ class Column:
     :param length: Longueur de la colonne.
     :param nullable: Indique si la colonne peut être nulle.
     :param primary_key: Indique si la colonne est une clé primaire.
+    :param default: Valeur par défaut de la colonne.
     :param table: Table à laquelle appartient la colonne.
     """
 
@@ -369,6 +435,7 @@ class Column:
     length: int | None
     nullable: bool
     primary_key: bool
+    default: Any | None
     table: Table
 
     def __init__(self, meta_data: ColumnMeta, table: Table) -> None:
@@ -383,6 +450,7 @@ class Column:
         self.length = meta_data.length
         self.nullable = meta_data.nullable
         self.primary_key = meta_data.primary_key
+        self.default = meta_data.default
         self.table = table
 
     def __str__(self) -> str:
@@ -399,6 +467,7 @@ class ForeignKeyColumn(Column):
     :param length: Longueur de la colonne.
     :param nullable: Indique si la colonne peut être nulle.
     :param primary_key: Indique si la colonne est une clé primaire.
+    :param default: Valeur par défaut de la colonne.
     :param table: Table à laquelle appartient la colonne.
     :param foreign_table: Table étrangère.
     :param foreign_column: Colonne étrangère.
