@@ -22,6 +22,7 @@ class DbConfig(BaseModel):
     :param user: Nom d'utilisateur de la base de données.
     :param password: Mot de passe de la base de données.
     :param database: Nom de la base de données.
+    :param schema: Schéma/Partition de la base de données.
     """
 
     host: str = Field("localhost", title="Adresse du serveur de base de données")
@@ -30,6 +31,7 @@ class DbConfig(BaseModel):
     user: str = Field("root", title="Nom d'utilisateur de la base de données")
     password: str = Field(..., title="Mot de passe de la base de données")
     database: str = Field("test", title="Nom de la base de données")
+    db_schema: str | None = Field(None, title="Schéma/Partition de la base de données")
 
     def __init__(
         self,
@@ -39,6 +41,7 @@ class DbConfig(BaseModel):
         password: str,
         database: str,
         port: int | None = None,
+        db_schema: str | None = None,
     ) -> None:
         """
         Constructeur de la configuration de la base de données.
@@ -54,6 +57,9 @@ class DbConfig(BaseModel):
         if port is None:
             port = type.default_port()
 
+        if db_schema is None:
+            db_schema = type.default_schema()
+
         super().__init__(
             host=host,
             port=port,
@@ -61,6 +67,7 @@ class DbConfig(BaseModel):
             user=user,
             password=password,
             database=database,
+            db_schema=db_schema,
         )
 
     def __str__(self) -> str:
@@ -128,4 +135,15 @@ class DataBaseType(Enum):
             DataBaseType.SQLITE: 0,
             DataBaseType.ORACLE: 1521,
             DataBaseType.SQLSERVER: 1433,
+        }[self]
+
+    def default_schema(self) -> str:
+        """Retourne le schéma par défaut du type de base de données."""
+
+        return {
+            DataBaseType.MYSQL: "mysql",
+            DataBaseType.POSTGRESQL: "public",
+            DataBaseType.SQLITE: "",
+            DataBaseType.ORACLE: "sys",
+            DataBaseType.SQLSERVER: "dbo",
         }[self]

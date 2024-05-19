@@ -1,11 +1,11 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from typing import Any, Type
 
 from models.relational.metadata import (
-    ColumnType,
     ColumnMeta,
     ForeignKeyColumnMeta,
-    ForeignKeyAction,
     UniqueColumnsMeta,
 )
 
@@ -28,59 +28,61 @@ class ORM(ABC):
             - name: Nom de la table.
             - link_table: Table de l'ORM.
             - columns_meta: Métadonnées des colonnes.
+            - unique_constraints: Contraintes d'unicité.
+            - orm: ORM.
         """
 
         name: str
         link_table: Any
         columns_meta: list[ColumnMeta | ForeignKeyColumnMeta]
         unique_constraints: list[UniqueColumnsMeta]
+        orm: ORM
+
+        class AddColumnError(Exception):
+            """
+            Erreur d'ajout de colonne.
+            """
+
+            pass
+
+        @abstractmethod
+        def add_column(
+            self,
+            column: ColumnMeta | ForeignKeyColumnMeta,
+        ) -> ORM.Column:
+            """
+            Ajoute une colonne à la table.
+            :param column: Colonne à créer.
+            :return: Colonne.
+            """
+
+            pass
 
     class Column(ABC):
         """
         Classe de gestion des colonnes.
 
         - Attributs:
-            - name: Nom de la colonne.
-            - type: Type de la colonne.
-            - length: Longueur de la colonne.
-            - nullable: Colonne nullable.
-            - primary_key: Colonne clé primaire.
-            - unique: Colonne unique.
-            - default: Valeur par défaut de la colonne.
+            - meta: Métadonnées de la colonne.
             - link_column: Colonne de l'ORM.
+            - orm: ORM.
         """
 
-        name: str
-        type: ColumnType
-        length: int | None
-        nullable: bool
-        primary_key: bool
-        unique: bool
-        default: Any
+        meta: ColumnMeta
         link_column: Any
+        orm: ORM
 
     class ForeignKeyColumn(Column):
         """
         Classe de gestion des colonnes de clé étrangère.
 
         - Attributs:
-            - name: Nom de la colonne.
-            - type: Type de la colonne.
-            - length: Longueur de la colonne.
-            - nullable: Colonne nullable.
-            - primary_key: Colonne clé primaire.
-            - unique: Colonne unique.
-            - default: Valeur par défaut de la colonne.
-            - foreign_table_name: Nom de la table étrangère.
-            - foreign_column_name: Nom de la colonne étrangère.
-            - on_delete: Action de suppression.
-            - on_update: Action de mise à jour.
+            - meta: Métadonnées de la colonne.
+            - link_column: Colonne de l'ORM.
+            - orm: ORM.
         """
 
-        foreign_table_name: str
-        foreign_column_name: str
-        on_delete: ForeignKeyAction = ForeignKeyAction.NO_ACTION
-        on_update: ForeignKeyAction = ForeignKeyAction.NO_ACTION
+        meta: ForeignKeyColumnMeta
 
     class UniqueConstraint(ABC):
         """
