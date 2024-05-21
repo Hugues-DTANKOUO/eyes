@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import (
     Engine,
     create_engine,
+    Connection,
     Table,
     MetaData,
     Column,
@@ -15,8 +16,12 @@ from sqlalchemy import (
     Date,
     Text,
     UniqueConstraint,
+    TextClause,
 )
-from sqlalchemy.exc import NoSuchTableError as SQLAlchemyNoSuchTableError
+from sqlalchemy.exc import (
+    NoSuchTableError as SQLAlchemyNoSuchTableError,
+    SQLAlchemyError,
+)
 from sqlalchemy.sql.schema import DefaultClause
 from sqlalchemy.sql import text
 from typing import cast, Type, Any
@@ -138,7 +143,7 @@ class SQLAlchemy(ORM):
         """
 
         link_table: Table
-        name: str
+        _name: str
         columns_meta: list[ColumnMeta | ForeignKeyColumnMeta]
         unique_constraints: list[UniqueColumnsMeta]
         orm: SQLAlchemy
@@ -151,7 +156,7 @@ class SQLAlchemy(ORM):
             :return: Table.
             """
 
-            self.name = table.name
+            self._name = table.name
             self.link_table = copy(table)
             self.columns_meta = []
             for column in table.columns:
@@ -260,13 +265,15 @@ class SQLAlchemy(ORM):
                     )
                     column_type_compiled = column_type.compile(self.orm.engine.dialect)
                     nullable = "NOT NULL" if not column.nullable else ""
-                    default = (
-                        f"DEFAULT {column.default}"
-                        if column.default is not None
-                        else ""
-                    )
+                    default = ""
+                    if column.default is not None:
+                        if isinstance(column.default, str):
+                            default = f"DEFAULT '{column.default}'"
+                        else:
+                            default = f"DEFAULT {column.default}"
                     primary_key = "PRIMARY KEY" if column.primary_key else ""
                     unique = "UNIQUE" if column.unique else ""
+                    foreign_key = ""
                     if isinstance(column, ForeignKeyColumnMeta):
                         foreign_table_name = (
                             f'{self.orm.schema}."{column.foreign_table_name}"'
@@ -278,18 +285,11 @@ class SQLAlchemy(ORM):
                             f" ON DELETE {column.on_delete.value}"
                             f" ON UPDATE {column.on_update.value}"
                         )
-                    else:
-                        foreign_key = ""
                     alter_statement = text(
                         f'ALTER TABLE {name} ADD COLUMN "{column.name}" {column_type_compiled}'
                         f" {nullable} {default} {primary_key} {unique} {foreign_key}"
                     )
-                    connection.execute(alter_statement)
-                    connection.commit()
-                    self.orm.engine.dispose()
-                    self.orm.engine = create_engine(self.orm._engine_url)
-                    self.orm._metadata = MetaData(schema=self.orm.schema)
-                    self.orm._metadata.reflect(bind=self.orm.engine)
+                    self.orm.execute(connection, alter_statement)
                     self = self.orm.get_table(self.name)
                     return self.orm.Column(
                         self.link_table.columns[column.name], self.orm
@@ -298,6 +298,33 @@ class SQLAlchemy(ORM):
                     raise self.AddColumnError(
                         f"Impossible de créer la colonne {column.name} dans la table {self.name}."
                     ) from e
+
+        @property
+        def name(self) -> str:
+            """
+            Retourne le nom de la table.
+            :return: Nom de la table.
+            """
+
+            return self._name
+
+        @name.setter
+        def name(self, name: str) -> None:
+            """
+            Modifie le nom de la table.
+            :param name: Nom de la table.
+            """
+            try:
+                with self.orm.engine.connect() as connection:
+                    alter_statement = text(
+                        f'ALTER TABLE {self.orm.schema}."{self._name}" RENAME TO "{name}"'
+                    )
+                    self.orm.execute(connection, alter_statement)
+                    self = self.orm.get_table(name)
+            except SQLAlchemyError as e:
+                raise self.orm.SQLExecutionError(
+                    f"Impossible de renommer la table {self._name} en {name}."
+                ) from e
 
     class Column(ORM.Column):
         """
@@ -549,6 +576,23 @@ class SQLAlchemy(ORM):
         """
 
         return SQLAlchemyNoSuchTableError
+
+    def refresh_metadata(self) -> None:
+        """
+        Rafraîchit les métadonnées de la base de données.
+        """
+        self._metadata = MetaData(schema=self.schema)
+        self._metadata.reflect(bind=self.engine)
+
+    def execute(self, connection: Connection, statement: TextClause) -> None:
+        """
+        Exécute une requête SQL.
+        :param connection: Connexion à la base de données.
+        :param statement: Requête SQL.
+        """
+        connection.execute(statement)
+        connection.commit()
+        self.refresh_metadata()
 
     def close_session(self) -> None:
         """Ferme la connexion à la base de données."""

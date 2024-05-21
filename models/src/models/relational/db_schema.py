@@ -40,9 +40,7 @@ FOREIGNKEY_COLUMN_ORM_TYPE = TypeVar(
 )
 
 
-class Database(
-    Generic[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE], ABC
-):
+class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
     """
     Classe abstraite représentant une base de données.
 
@@ -89,6 +87,11 @@ class Database(
     def name(self) -> str:
         """Retourne le nom de la base de données."""
         return self._name
+
+    @name.setter
+    def name(self, _: str) -> None:
+        """Définit le nom de la base de données."""
+        raise AttributeError("Impossible de modifier le nom de la base de données.")
 
     def disconnection(self) -> None:
         """Déconnecte de la base de données."""
@@ -148,29 +151,6 @@ class Database(
                 f"Impossible de récupérer ou créer la table {table_name}."
             ) from e
 
-    def add_orm_column_to_table(
-        self,
-        table_name: str,
-        column: ColumnMeta | ForeignKeyColumnMeta,
-    ) -> Type[COLUMN_ORM_TYPE] | Type[FOREIGNKEY_COLUMN_ORM_TYPE]:
-        """
-        Ajoute une colonne à une table.
-        :param table_name: Nom de la table.
-        :param column: Colonne à créer.
-        :return: Colonne créée sous forme de classe de la couche ORM.
-        """
-        try:
-            table_orm = self.get_orm_table(table_name)
-            try:
-                column_orm = cast(Type[COLUMN_ORM_TYPE], table_orm.add_column(column))  # type: ignore
-                return column_orm
-            except table_orm.AddColumnError as e:
-                raise table_orm.AddColumnError(e) from e
-        except self._orm.NoSuchTableError as e:
-            raise self._orm.NoSuchTableError(e) from e
-        except Exception as e:
-            raise Exception(f"Impossible de récupérer la table {table_name}.") from e
-
     @abstractmethod
     def execute(self, query: str) -> Any:
         """
@@ -188,6 +168,7 @@ class Database(
         :return: Schéma de la base de données.
         """
 
+        self._get_orm_tables()
         return {
             "name": self._name,
             "type": self._type.value,
@@ -216,9 +197,7 @@ class Database(
             json.dump(self.get_schema(), file, indent=4)
 
 
-class SQLite(
-    Database[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
-):
+class SQLite(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données SQLite.
     """
@@ -242,9 +221,7 @@ class SQLite(
         pass
 
 
-class PostgreSQL(
-    Database[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
-):
+class PostgreSQL(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données PostgreSQL.
     """
@@ -268,9 +245,7 @@ class PostgreSQL(
         pass
 
 
-class MySQL(
-    Database[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
-):
+class MySQL(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données MySQL.
     """
@@ -294,9 +269,7 @@ class MySQL(
         pass
 
 
-class OracleDB(
-    Database[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
-):
+class OracleDB(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données Oracle.
     """
@@ -320,9 +293,7 @@ class OracleDB(
         pass
 
 
-class SQLServer(
-    Database[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
-):
+class SQLServer(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
     Représente une base de données SQL Server.
     """
@@ -357,11 +328,9 @@ class Table(
     :param unique_contraints_columns: Liste des contraintes d'unicité.
     """
 
-    db_name: str
+    _db_name: str
     vb_name: str
-    database: Database[
-        ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
-    ]
+    database: Database[ORM_TYPE, TABLE_ORM_TYPE]
     _columns: list[Column | ForeignKeyColumn]
     _unique_constraints_columns: list[UniqueConstraint]
     link_table: Type[TABLE_ORM_TYPE]
@@ -369,9 +338,7 @@ class Table(
     def __init__(
         self,
         name: str,
-        database: Database[
-            ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
-        ],
+        database: Database[ORM_TYPE, TABLE_ORM_TYPE],
         columns: list[ColumnMeta | ForeignKeyColumnMeta] | None = None,
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
     ) -> None:
@@ -394,7 +361,7 @@ class Table(
                     )
             else:
                 table = database.get_orm_table(name)
-            self.db_name = table.name
+            self._db_name = table.name  # type: ignore
             self.vb_name = name
             self.database = database
             self._columns = [
@@ -449,6 +416,21 @@ class Table(
         """Retourne les contraintes d'unicité de la table."""
         return self._unique_constraints_columns
 
+    @property
+    def db_name(self) -> str:
+        """Retourne le nom de la table dans la base de données."""
+        return self._db_name
+
+    @db_name.setter
+    def db_name(self, name: str) -> None:
+        """
+        Modifie le nom de la table dans la base de données.
+        :param name: Nom de la table.
+        """
+        self.link_table.name = name  # type: ignore
+        self.link_table = self.database.get_orm_table(name)
+        self._db_name = name
+
     def get_column(self, column_name: str) -> Column | ForeignKeyColumn:
         """
         Retourne une colonne de la table.
@@ -472,19 +454,16 @@ class Table(
         :param column: Métadonnées de la colonne.
         :return: Colonne.
         """
-        try:
-            column_orm_meta = self.database.add_orm_column_to_table(
-                self.db_name, column_meta
-            ).meta
-            column = (
-                ForeignKeyColumn(meta_data=column_orm_meta, table=self)
-                if isinstance(column_orm_meta, ForeignKeyColumnMeta)
-                else Column(meta_data=column_orm_meta, table=self)
-            )
-            self._columns.append(column)
-            return column
-        except self.link_table.AddColumnError as e:
-            raise self.link_table.AddColumnError(e) from e
+        column_orm_meta = cast(
+            Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE], self.link_table.add_column(column_meta)  # type: ignore
+        ).meta
+        column = (
+            ForeignKeyColumn(meta_data=column_orm_meta, table=self)
+            if isinstance(column_orm_meta, ForeignKeyColumnMeta)
+            else Column(meta_data=column_orm_meta, table=self)
+        )
+        self._columns.append(column)
+        return column
 
 
 class Column:

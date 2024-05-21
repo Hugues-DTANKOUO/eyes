@@ -32,7 +32,7 @@ class ORM(ABC):
             - orm: ORM.
         """
 
-        name: str
+        _name: str
         link_table: Any
         columns_meta: list[ColumnMeta | ForeignKeyColumnMeta]
         unique_constraints: list[UniqueColumnsMeta]
@@ -46,6 +46,16 @@ class ORM(ABC):
             pass
 
         @abstractmethod
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            """
+            Constructeur de la classe Table.
+            :param *args: Arguments.
+            :param **kwargs: Arguments nommés.
+            """
+
+            pass
+
+        @abstractmethod
         def add_column(
             self,
             column: ColumnMeta | ForeignKeyColumnMeta,
@@ -54,6 +64,26 @@ class ORM(ABC):
             Ajoute une colonne à la table.
             :param column: Colonne à créer.
             :return: Colonne.
+            """
+
+            pass
+
+        @property
+        @abstractmethod
+        def name(self) -> str:
+            """
+            Retourne le nom de la table.
+            :return: Nom de la table.
+            """
+
+            pass
+
+        @name.setter
+        @abstractmethod
+        def name(self, name: str) -> None:
+            """
+            Modifie le nom de la table.
+            :param name: Nom de la table.
             """
 
             pass
@@ -108,6 +138,13 @@ class ORM(ABC):
     class CreateTableError(Exception):
         """
         Erreur de création de table.
+        """
+
+        pass
+
+    class SQLExecutionError(Exception):
+        """
+        Erreur d'exécution de requête SQL.
         """
 
         pass

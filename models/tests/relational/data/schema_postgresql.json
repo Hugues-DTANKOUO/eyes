@@ -2,8 +2,8 @@
     "name": "test",
     "type": "postgresql",
     "tables": {
-        "Schools": {
-            "name": "Schools",
+        "public.Students": {
+            "name": "public.Students",
             "columns": {
                 "Id": {
                     "name": "Id",
@@ -11,40 +11,7 @@
                     "length": null,
                     "nullable": false,
                     "primary_key": true,
-                    "unique": true,
-                    "default": null
-                },
-                "Name": {
-                    "name": "Name",
-                    "type": "VARCHAR",
-                    "length": 100,
-                    "nullable": false,
-                    "primary_key": false,
                     "unique": false,
-                    "default": "ENSP Yaounde"
-                },
-                "Location": {
-                    "name": "Location",
-                    "type": "VARCHAR",
-                    "length": 100,
-                    "nullable": false,
-                    "primary_key": false,
-                    "unique": false,
-                    "default": null
-                }
-            },
-            "unique_columns": {}
-        },
-        "Students": {
-            "name": "Students",
-            "columns": {
-                "Id": {
-                    "name": "Id",
-                    "type": "INT",
-                    "length": null,
-                    "nullable": false,
-                    "primary_key": true,
-                    "unique": true,
                     "default": null
                 },
                 "Name": {
@@ -64,10 +31,52 @@
                     "primary_key": false,
                     "unique": false,
                     "default": null,
-                    "foreign_table": "Schools",
+                    "foreign_table": "Schools2",
                     "foreign_column": "Id",
                     "on_delete": "CASCADE",
                     "on_update": "CASCADE"
+                }
+            },
+            "unique_columns": {}
+        },
+        "public.Schools2": {
+            "name": "public.Schools2",
+            "columns": {
+                "Id": {
+                    "name": "Id",
+                    "type": "INT",
+                    "length": null,
+                    "nullable": false,
+                    "primary_key": true,
+                    "unique": false,
+                    "default": null
+                },
+                "Name": {
+                    "name": "Name",
+                    "type": "VARCHAR",
+                    "length": 100,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": "'ENSP Yaounde'::character varying"
+                },
+                "Location": {
+                    "name": "Location",
+                    "type": "VARCHAR",
+                    "length": 100,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": null
+                },
+                "Country": {
+                    "name": "Country",
+                    "type": "VARCHAR",
+                    "length": 100,
+                    "nullable": false,
+                    "primary_key": false,
+                    "unique": false,
+                    "default": "'Cameroon'::character varying"
                 }
             },
             "unique_columns": {}
