@@ -1,29 +1,21 @@
 from __future__ import annotations
 
-from sqlalchemy import (
-    Engine,
-    create_engine,
-    Connection,
-    Table,
-    MetaData,
-    Column,
-    Integer,
-    String,
-    DateTime,
-    Boolean,
-    Float,
-    ForeignKey,
-    Date,
-    Text,
-    UniqueConstraint,
-    TextClause,
-)
+from sqlalchemy.engine import Connection, Engine, create_engine
 from sqlalchemy.exc import (
     NoSuchTableError as SQLAlchemyNoSuchTableError,
     SQLAlchemyError,
 )
-from sqlalchemy.sql.schema import DefaultClause
+from sqlalchemy.schema import (
+    Column,
+    ForeignKey,
+    UniqueConstraint,
+    MetaData,
+    Table,
+    DefaultClause,
+)
+from sqlalchemy.sql.expression import TextClause
 from sqlalchemy.sql import text
+from sqlalchemy.types import Integer, String, DateTime, Boolean, Float, Date, Text
 from typing import cast, Type, Any
 
 from models.relational.orm import ORM
@@ -34,17 +26,6 @@ from models.relational.metadata import (
     ForeignKeyAction,
     UniqueColumnsMeta,
 )
-from copy import copy
-
-SQLALCHEMY_TYPES: dict[ColumnType, type] = {
-    ColumnType.INT: cast(type, Integer),
-    ColumnType.VARCHAR: cast(type, String),
-    ColumnType.TEXT: cast(type, Text),
-    ColumnType.DATE: cast(type, Date),
-    ColumnType.DATETIME: cast(type, DateTime),
-    ColumnType.BOOLEAN: cast(type, Boolean),
-    ColumnType.DECIMAL: cast(type, Float),
-}
 
 
 def get_sqlalchemy_type(column_type: ColumnType, column_length: int | None) -> type:
@@ -55,10 +36,33 @@ def get_sqlalchemy_type(column_type: ColumnType, column_length: int | None) -> t
     :return: Type SQLAlchemy.
     """
 
-    type_alchemy = SQLALCHEMY_TYPES[column_type]
+    type_alchemy = {
+        ColumnType.INT: cast(type, Integer),
+        ColumnType.VARCHAR: cast(type, String),
+        ColumnType.TEXT: cast(type, Text),
+        ColumnType.DATE: cast(type, Date),
+        ColumnType.DATETIME: cast(type, DateTime),
+        ColumnType.BOOLEAN: cast(type, Boolean),
+        ColumnType.DECIMAL: cast(type, Float),
+    }[column_type]
     if column_length is not None and (type_alchemy == String or type_alchemy == Text):
         type_alchemy = cast(type, String(length=column_length))
     return type_alchemy
+
+
+def cast_to_sqlalchemy_type(
+    column_type: ColumnType, column_length: int | None
+) -> Integer | String | DateTime | Boolean | Float | Date | Text:
+    """
+    Convertit un type de colonne en type SQLAlchemy.
+    :param column_type: Type de colonne.
+    :param column_length: Longueur de la colonne.
+    :return: Type de colonne SQLAlchemy.
+    """
+    return cast(
+        Integer | String | DateTime | Boolean | Float | Date | Text,
+        get_sqlalchemy_type(column_type, column_length),
+    )
 
 
 def get_column_type(column_type: type) -> ColumnType:
@@ -123,7 +127,7 @@ class SQLAlchemy(ORM):
 
     - Attributs:
         - engine: Moteur de connexion à la base de données.
-        - no_such_table_error: Erreur de table inexistante.
+        - schema: Schéma/partition de la base de données.
         - _metadata: Métadonnées de la base de données.
     """
 
@@ -136,12 +140,14 @@ class SQLAlchemy(ORM):
         Classe de gestion des tables.
 
         - Attributs:
-            - link_table: Table liée.
+            - _link_table: Table liée.
             - name: Nom de la table.
-            - columns_meta: Métadonnées des colonnes.
+            - columns: Colonnes de la table.
+            - unique_constraints: Contraintes d'unicité.
+            - orm: ORM.
         """
 
-        link_table: Table
+        _link_table: Table
         _name: str
         columns: list[SQLAlchemy.Column | SQLAlchemy.ForeignKeyColumn]
         unique_constraints: list[UniqueColumnsMeta]
@@ -156,17 +162,19 @@ class SQLAlchemy(ORM):
             """
 
             self._name = table.name
-            self.link_table = copy(table)
+            self._link_table = table
+            self.orm = sql_alchemy_instance
+
             self.columns = []
-            for column in table.columns:
-                if column.foreign_keys:
-                    column_orm: SQLAlchemy.Column | SQLAlchemy.ForeignKeyColumn = (
-                        SQLAlchemy.ForeignKeyColumn(column, sql_alchemy_instance)
-                    )
-                else:
-                    column_orm = SQLAlchemy.Column(column, sql_alchemy_instance)
-                self.columns.append(column_orm)
             self.unique_constraints = []
+
+            for column in table.columns:
+                self.columns.append(
+                    SQLAlchemy.ForeignKeyColumn(column, self)
+                    if column.foreign_keys
+                    else SQLAlchemy.Column(column, self)
+                )
+
             for unique_constraint in table.constraints:
                 if (
                     isinstance(unique_constraint, UniqueConstraint)
@@ -188,7 +196,6 @@ class SQLAlchemy(ORM):
                                 ),
                             )
                         )
-            self.orm = sql_alchemy_instance
 
         def add_column(
             self,
@@ -200,7 +207,7 @@ class SQLAlchemy(ORM):
             :return: Colonne.
             """
 
-            if column.name in self.link_table.columns:
+            if self.has_column(column.name):
                 raise self.AddColumnError(
                     f"Impossible de créer la colonne {column.name}.\n"
                     f"La colonne existe déjà dans la table {self.name}."
@@ -208,40 +215,24 @@ class SQLAlchemy(ORM):
 
             with self.orm.engine.connect() as connection:
                 try:
-                    name = (
-                        f'{self.orm.schema}."{self.name}"'
-                        if self.orm.schema
-                        else self.name
+                    column_type_compiled = cast_to_sqlalchemy_type(
+                        column.type, column.length
+                    ).compile(self.orm.engine.dialect)
+                    Verbs = SQLAlchemy.SQL_Verbs
+                    AlchColumn = SQLAlchemy.Column
+                    foreign_table_name = (
+                        self._table_name_for_request(column.foreign_table_name)
+                        if isinstance(column, ForeignKeyColumnMeta)
+                        else ""
                     )
-                    column_type = cast(
-                        Integer | String | DateTime | Boolean | Float | Date | Text,
-                        get_sqlalchemy_type(column.type, column.length),
-                    )
-                    column_type_compiled = column_type.compile(self.orm.engine.dialect)
-                    nullable = "NOT NULL" if not column.nullable else ""
-                    default = ""
-                    if column.default is not None:
-                        if isinstance(column.default, str):
-                            default = f"DEFAULT '{column.default}'"
-                        else:
-                            default = f"DEFAULT {column.default}"
-                    primary_key = "PRIMARY KEY" if column.primary_key else ""
-                    unique = "UNIQUE" if column.unique else ""
-                    foreign_key = ""
-                    if isinstance(column, ForeignKeyColumnMeta):
-                        foreign_table_name = (
-                            f'{self.orm.schema}."{column.foreign_table_name}"'
-                            if self.orm.schema
-                            else column.foreign_table_name
-                        )
-                        foreign_key = (
-                            f'FOREIGN KEY ("{column.name}") REFERENCES {foreign_table_name} ("{column.foreign_column_name}")'
-                            f" ON DELETE {column.on_delete.value}"
-                            f" ON UPDATE {column.on_update.value}"
-                        )
                     alter_statement = text(
-                        f'ALTER TABLE {name} ADD COLUMN "{column.name}" {column_type_compiled}'
-                        f" {nullable} {default} {primary_key} {unique} {foreign_key}"
+                        f"{Verbs.ALTER_TABLE.value} {self._table_name_for_request()} "
+                        f"{Verbs.ADD_COLUMN.value} {AlchColumn._name_for_request(column.name)} "
+                        f"{column_type_compiled} {AlchColumn._nullable_for_request(column.nullable)} "
+                        f"{AlchColumn._default_for_request(column.default)} "
+                        f"{AlchColumn._primary_key_for_request(column.primary_key)} "
+                        f"{AlchColumn._unique_for_request(column.unique)} "
+                        f"{AlchColumn._foreign_key_for_request(column, foreign_table_name)}"
                     )
                     self.orm.execute(connection, alter_statement)
                     self = self.orm.get_table(self.name)
@@ -259,15 +250,20 @@ class SQLAlchemy(ORM):
             :param name: Nom de la colonne.
             :return: Colonne.
             """
-            try:
-                column = self.link_table.columns[name]
+            if self.has_column(name):
+                column = self._link_table.columns[name]
                 if column.foreign_keys:
-                    return SQLAlchemy.ForeignKeyColumn(column, self.orm)
-                return SQLAlchemy.Column(self.link_table.columns[name], self.orm)
-            except KeyError as e:
-                raise KeyError(
-                    f"La colonne {name} n'existe pas dans la table {self.name}."
-                ) from e
+                    return SQLAlchemy.ForeignKeyColumn(column, self)
+                return SQLAlchemy.Column(column, self)
+            raise KeyError(f"La colonne {name} n'existe pas dans la table {self.name}.")
+
+        def has_column(self, name: str) -> bool:
+            """
+            Vérifie si une colonne existe dans la table.
+            :param name: Nom de la colonne.
+            :return: Vrai si la colonne existe, faux sinon.
+            """
+            return name in self._link_table.columns
 
         @property
         def name(self) -> str:
@@ -287,7 +283,9 @@ class SQLAlchemy(ORM):
             try:
                 with self.orm.engine.connect() as connection:
                     alter_statement = text(
-                        f'ALTER TABLE {self.orm.schema}."{self._name}" RENAME TO "{name}"'
+                        f"{SQLAlchemy.SQL_Verbs.ALTER_TABLE.value} "
+                        f"{self._table_name_for_request()} "
+                        f'{SQLAlchemy.SQL_Verbs.RENAME_TO.value} "{name}"'
                     )
                     self.orm.execute(connection, alter_statement)
                     self = self.orm.get_table(name)
@@ -302,18 +300,18 @@ class SQLAlchemy(ORM):
         """
 
         meta: ColumnMeta
-        link_column: Column
-        orm: SQLAlchemy
+        _link_column: Column
+        table: SQLAlchemy.Table
 
-        def __init__(self, column: Column, sql_alchemy_instance: SQLAlchemy) -> None:
+        def __init__(self, column: Column, table: SQLAlchemy.Table) -> None:
             """
             Crée une colonne.
             :param column: Colonne à créer.
-            :param sql_alchemy_instance: Instance de la couche ORM pour SQLAlchemy.
+            :param table: Table de la colonne.
             :return: Colonne.
             """
 
-            self.link_column = copy(column)
+            self._link_column = column
 
             name = column.name
             type_column = get_column_type(cast(type, column.type))
@@ -340,7 +338,7 @@ class SQLAlchemy(ORM):
                 unique=unique,
                 default=default,
             )
-            self.orm = sql_alchemy_instance
+            self.table = table
 
         def set_name(self, name: str) -> SQLAlchemy.Column:
             """
@@ -349,18 +347,22 @@ class SQLAlchemy(ORM):
             :return: Colonne.
             """
             try:
-                with self.orm.engine.connect() as connection:
+                with self.table.orm.engine.connect() as connection:
                     alter_statement = text(
-                        f'ALTER TABLE {self.orm.schema}."{self.link_column.table.name}"'
-                        f' RENAME COLUMN "{self.meta.name}" TO "{name}"'
+                        f"{SQLAlchemy.SQL_Verbs.ALTER_TABLE.value} "
+                        f"{self.table._table_name_for_request()}"
+                        f"{SQLAlchemy.SQL_Verbs.RENAME_COLUMN.value} "
+                        f"{SQLAlchemy.Column._name_for_request(self.meta.name)} "
+                        f"{SQLAlchemy.SQL_Verbs.TO.value} "
+                        f"{SQLAlchemy.Column._name_for_request(name)}"
                     )
-                    self.orm.execute(connection, alter_statement)
-                    table = self.orm.get_table(self.link_column.table.name)
+                    self.table.orm.execute(connection, alter_statement)
+                    table = self.table.orm.get_table(self.table.name)
                     self = cast(SQLAlchemy.Column, table.get_column(name))
                     return self
             except SQLAlchemyError as e:
                 raise self.orm.SQLExecutionError(
-                    f"Impossible de renommer la colonne {self.link_column.name} en {name}."
+                    f"Impossible de renommer la colonne {self._link_column.name} en {name}."
                 ) from e
 
     class ForeignKeyColumn(ORM.ForeignKeyColumn):
@@ -368,20 +370,20 @@ class SQLAlchemy(ORM):
         Classe de gestion des colonnes de clé étrangère.
         """
 
-        link_column: Column
-        orm: SQLAlchemy
+        _link_column: Column
+        table: SQLAlchemy.Table
 
-        def __init__(self, column: Column, sql_alchemy_instance: SQLAlchemy) -> None:
+        def __init__(self, column: Column, table: SQLAlchemy.Table) -> None:
             """
             Crée une colonne.
             :param column: Colonne à créer.
-            :param sql_alchemy_instance: Instance de la couche ORM pour SQLAlchemy.
+            :param table: Table de la colonne.
             :return: Colonne.
             """
 
             foreign_key = next(iter(column.foreign_keys))
 
-            self.link_column = copy(column)
+            self._link_column = column
 
             name = column.name
             type_column = get_column_type(cast(type, column.type))
@@ -417,7 +419,7 @@ class SQLAlchemy(ORM):
                 on_delete=on_delete,
                 on_update=on_update,
             )
-            self.orm = sql_alchemy_instance
+            self.table = table
 
         def set_name(self, name: str) -> SQLAlchemy.ForeignKeyColumn:
             """
@@ -434,21 +436,16 @@ class SQLAlchemy(ORM):
 
         link_constraint: UniqueConstraint
 
-        @staticmethod
-        def create(constraint: UniqueConstraint) -> SQLAlchemy.UniqueConstraint:
+        def __init__(self, constraint: UniqueConstraint) -> None:
             """
             Crée une contrainte d'unicité.
             :param constraint: Contrainte d'unicité à créer.
             :return: Contrainte d'unicité.
             """
 
-            constraint_orm = cast(SQLAlchemy.UniqueConstraint, constraint)
-
-            constraint_orm.link_constraint = copy(constraint)
-            constraint_orm.name = str(constraint.name or "")
-            constraint_orm.columns = set(column.name for column in constraint.columns)
-
-            return constraint_orm
+            self.link_constraint = constraint
+            self.name = str(constraint.name or "")
+            self.columns = set(column.name for column in constraint.columns)
 
     class NoSuchTableError(SQLAlchemyNoSuchTableError):
         """

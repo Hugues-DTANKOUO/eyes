@@ -374,7 +374,7 @@ class Table(
             self._db_name = table.name  # type: ignore
             self.vb_name = name
             self.database = database
-            self.link_table = table
+            self._link_table = table
             self._columns = [
                 (
                     ForeignKeyColumn[
@@ -456,26 +456,26 @@ class Table(
         Modifie le nom de la table dans la base de données.
         :param name: Nom de la table.
         """
-        self.link_table.name = name  # type: ignore
-        self.link_table = self.database.get_orm_table(name)
+        self._link_table.name = name  # type: ignore
+        self._link_table = self.database.get_orm_table(name)
         self._db_name = name
 
     def refresh(self) -> None:
         """
         Rafraîchit les données de la table.
         """
-        self.link_table = self.database.get_orm_table(self.vb_name)
+        self._link_table = self.database.get_orm_table(self.vb_name)
         self._columns = [
             (
                 ForeignKeyColumn(column.meta, self)
                 if isinstance(column.meta, ForeignKeyColumnMeta)
                 else Column(column.meta, self)
             )
-            for column in self.link_table.columns
+            for column in self._link_table.columns
         ]
         self._unique_constraints_columns = [
             UniqueConstraint(unique, self)
-            for unique in self.link_table.unique_constraints
+            for unique in self._link_table.unique_constraints
         ]
 
     def get_column(
@@ -514,7 +514,7 @@ class Table(
         :return: Colonne.
         """
         column_orm_meta = cast(
-            Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE], self.link_table.add_column(column_meta)  # type: ignore
+            Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE], self._link_table.add_column(column_meta)  # type: ignore
         ).meta
         self.refresh()
         column = (
@@ -572,11 +572,11 @@ class Column(
         self.default = meta_data.default
         self.unique = meta_data.unique
         self.table = table
-        self.link_column = cast(
+        self._link_column = cast(
             Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE],
             next(
                 column
-                for column in table.link_table.columns
+                for column in table._link_table.columns
                 if column.meta.name == self._name
             ),
         )
@@ -601,9 +601,9 @@ class Column(
 
         :param column_name: Nom de la colonne.
         """
-        self.link_column = cast(
+        self._link_column = cast(
             Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE],
-            self.link_column.set_name(column_name),  # type: ignore
+            self._link_column.set_name(column_name),  # type: ignore
         )
         self._name = column_name
         self.table.refresh()
