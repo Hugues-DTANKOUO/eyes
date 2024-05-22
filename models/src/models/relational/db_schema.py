@@ -44,14 +44,12 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
     """
     Classe abstraite représentant une base de données.
 
-    :param _engine_url: URL de connexion à la base de données.
     :param _name: Nom de la base de données.
     :param _type: Type de la base de données.
     :param _orm: Couche ORM de la base de données.
     :param tables: Tables de la base de données.
     """
 
-    _engine_url: str
     _name: str
     _type: DataBaseType
     _orm: ORM_TYPE
@@ -67,20 +65,20 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         """
 
         if isinstance(db_config, DbConfig):
-            self._engine_url = db_config.get_engine_url()
+            engine_url = db_config.get_engine_url()
             self._type = db_config.type
             self._name = db_config.database
             self._schema = db_config.db_schema
         elif isinstance(db_config, Path):
             if db_config.suffix == ".db":
-                self._engine_url = "sqlite:///" + str(db_config)
+                engine_url = "sqlite:///" + str(db_config)
                 self._type = DataBaseType.SQLITE
                 self._name = db_config.stem
             else:
                 raise ValueError("Le type de base de données n'est pas supporté.")
         else:
             raise ValueError("La configuration de la base de données est invalide.")
-        self._orm = orm_class_(self._engine_url, self._schema)
+        self._orm = orm_class_(engine_url, self._schema)
         self._get_orm_tables()
 
     @property
@@ -122,6 +120,12 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
             }
         except Exception as e:
             raise Exception("Impossible de récupérer les tables.") from e
+
+    def refresh(self) -> None:
+        """
+        Rafraîchit les tables de la base de données.
+        """
+        self._get_orm_tables()
 
     def create_orm_table(
         self,
@@ -176,7 +180,8 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
                 table_name: {
                     "name": table_name,
                     "columns": {
-                        column.name: column.get_dict() for column in table.columns_meta
+                        column.meta.name: column.meta.get_dict()
+                        for column in table.columns
                     },
                     "unique_columns": {
                         unique.name: unique.columns
@@ -331,7 +336,12 @@ class Table(
     _db_name: str
     vb_name: str
     database: Database[ORM_TYPE, TABLE_ORM_TYPE]
-    _columns: list[Column | ForeignKeyColumn]
+    _columns: list[
+        Column[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
+        | ForeignKeyColumn[
+            ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
+        ]
+    ]
     _unique_constraints_columns: list[UniqueConstraint]
     link_table: Type[TABLE_ORM_TYPE]
 
@@ -364,18 +374,28 @@ class Table(
             self._db_name = table.name  # type: ignore
             self.vb_name = name
             self.database = database
+            self.link_table = table
             self._columns = [
                 (
-                    ForeignKeyColumn(column, self)
-                    if isinstance(column, ForeignKeyColumnMeta)
-                    else Column(column, self)
+                    ForeignKeyColumn[
+                        ORM_TYPE,
+                        TABLE_ORM_TYPE,
+                        COLUMN_ORM_TYPE,
+                        FOREIGNKEY_COLUMN_ORM_TYPE,
+                    ](column.meta, self)
+                    if isinstance(column.meta, ForeignKeyColumnMeta)
+                    else Column[
+                        ORM_TYPE,
+                        TABLE_ORM_TYPE,
+                        COLUMN_ORM_TYPE,
+                        FOREIGNKEY_COLUMN_ORM_TYPE,
+                    ](column.meta, self)
                 )
-                for column in table.columns_meta
+                for column in table.columns
             ]
             self._unique_constraints_columns = [
                 UniqueConstraint(unique, self) for unique in table.unique_constraints
             ]
-            self.link_table = table
         except database._orm.NoSuchTableError as e:
             raise database._orm.NoSuchTableError(e) from e
         except database._orm.CreateTableError as e:
@@ -393,7 +413,9 @@ class Table(
         return self.vb_name
 
     @property
-    def primary_key(self) -> Column:
+    def primary_key(
+        self,
+    ) -> Column[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]:
         """
         Retourne la colonne clé primaire de la table.
 
@@ -407,7 +429,14 @@ class Table(
         )
 
     @property
-    def columns(self) -> list[Column]:
+    def columns(
+        self,
+    ) -> list[
+        Column[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
+        | ForeignKeyColumn[
+            ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
+        ]
+    ]:
         """Retourne les colonnes de la table."""
         return self._columns
 
@@ -431,7 +460,32 @@ class Table(
         self.link_table = self.database.get_orm_table(name)
         self._db_name = name
 
-    def get_column(self, column_name: str) -> Column | ForeignKeyColumn:
+    def refresh(self) -> None:
+        """
+        Rafraîchit les données de la table.
+        """
+        self.link_table = self.database.get_orm_table(self.vb_name)
+        self._columns = [
+            (
+                ForeignKeyColumn(column.meta, self)
+                if isinstance(column.meta, ForeignKeyColumnMeta)
+                else Column(column.meta, self)
+            )
+            for column in self.link_table.columns
+        ]
+        self._unique_constraints_columns = [
+            UniqueConstraint(unique, self)
+            for unique in self.link_table.unique_constraints
+        ]
+
+    def get_column(
+        self, column_name: str
+    ) -> (
+        Column[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
+        | ForeignKeyColumn[
+            ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
+        ]
+    ):
         """
         Retourne une colonne de la table.
 
@@ -447,7 +501,12 @@ class Table(
 
     def add_column(
         self, column_meta: ColumnMeta | ForeignKeyColumnMeta
-    ) -> Column | ForeignKeyColumn:
+    ) -> (
+        Column[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
+        | ForeignKeyColumn[
+            ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
+        ]
+    ):
         """
         Ajoute une colonne à la table.
 
@@ -457,16 +516,18 @@ class Table(
         column_orm_meta = cast(
             Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE], self.link_table.add_column(column_meta)  # type: ignore
         ).meta
+        self.refresh()
         column = (
             ForeignKeyColumn(meta_data=column_orm_meta, table=self)
             if isinstance(column_orm_meta, ForeignKeyColumnMeta)
             else Column(meta_data=column_orm_meta, table=self)
         )
-        self._columns.append(column)
         return column
 
 
-class Column:
+class Column(
+    Generic[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
+):
     """
     Représente une colonne d'une table.
 
@@ -480,23 +541,30 @@ class Column:
     :param table: Table à laquelle appartient la colonne.
     """
 
-    name: str
+    _name: str
     type: ColumnType
     length: int | None
     nullable: bool
     primary_key: bool
     default: Any | None
     unique: bool
-    table: Table
+    table: Table[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
+    link_column: Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE]
 
-    def __init__(self, meta_data: ColumnMeta, table: Table) -> None:
+    def __init__(
+        self,
+        meta_data: ColumnMeta,
+        table: Table[
+            ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
+        ],
+    ) -> None:
         """
         Constructeur de la colonne.
 
         :param meta_data: Métadonnées de la colonne.
         :param table: Table à laquelle appartient la colonne.
         """
-        self.name = meta_data.name
+        self._name = meta_data.name
         self.type = meta_data.type
         self.length = meta_data.length
         self.nullable = meta_data.nullable
@@ -504,13 +572,46 @@ class Column:
         self.default = meta_data.default
         self.unique = meta_data.unique
         self.table = table
+        self.link_column = cast(
+            Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE],
+            next(
+                column
+                for column in table.link_table.columns
+                if column.meta.name == self._name
+            ),
+        )
 
     def __str__(self) -> str:
         """Retourne une représentation de la colonne."""
         return f"Colonne {self.name} de type {self.type.value} de la table {self.table.vb_name}"
 
+    @property
+    def name(self) -> str:
+        """
+        Retourne le nom de la colonne.
 
-class ForeignKeyColumn(Column):
+        :return: Nom de la colonne.
+        """
+        return self._name
+
+    @name.setter
+    def name(self, column_name: str) -> None:
+        """
+        Modifie le nom de la colonne.
+
+        :param column_name: Nom de la colonne.
+        """
+        self.link_column = cast(
+            Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE],
+            self.link_column.set_name(column_name),  # type: ignore
+        )
+        self._name = column_name
+        self.table.refresh()
+
+
+class ForeignKeyColumn(
+    Column[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
+):
     """
     Représente une colonne de clé étrangère.
 
@@ -527,12 +628,22 @@ class ForeignKeyColumn(Column):
     :param on_update: Action sur mise à jour.
     """
 
-    foreign_table: Table
-    foreign_column: Column
+    foreign_table: Table[
+        ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
+    ]
+    foreign_column: Column[
+        ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
+    ]
     on_delete: ForeignKeyAction = ForeignKeyAction.NO_ACTION
     on_update: ForeignKeyAction = ForeignKeyAction.NO_ACTION
 
-    def __init__(self, meta_data: ForeignKeyColumnMeta, table: Table) -> None:
+    def __init__(
+        self,
+        meta_data: ForeignKeyColumnMeta,
+        table: Table[
+            ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
+        ],
+    ) -> None:
         """
         Constructeur de la colonne de clé étrangère.
 

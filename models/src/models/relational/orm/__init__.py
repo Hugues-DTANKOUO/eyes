@@ -34,7 +34,7 @@ class ORM(ABC):
 
         _name: str
         link_table: Any
-        columns_meta: list[ColumnMeta | ForeignKeyColumnMeta]
+        columns: list[ORM.Column | ORM.ForeignKeyColumn]
         unique_constraints: list[UniqueColumnsMeta]
         orm: ORM
 
@@ -63,6 +63,16 @@ class ORM(ABC):
             """
             Ajoute une colonne à la table.
             :param column: Colonne à créer.
+            :return: Colonne.
+            """
+
+            pass
+
+        @abstractmethod
+        def get_column(self, name: str) -> ORM.Column | ORM.ForeignKeyColumn:
+            """
+            Récupère une colonne de la table.
+            :param name: Nom de la colonne.
             :return: Colonne.
             """
 
@@ -101,6 +111,26 @@ class ORM(ABC):
         meta: ColumnMeta
         link_column: Any
         orm: ORM
+
+        @abstractmethod
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            """
+            Constructeur de la classe Column.
+            :param *args: Arguments.
+            :param **kwargs: Arguments nommés.
+            """
+
+            pass
+
+        @abstractmethod
+        def set_name(self, name: str) -> ORM.Column | ORM.ForeignKeyColumn:
+            """
+            Modifie le nom de la colonne.
+            :param name: Nom de la colonne.
+            :return: Colonne.
+            """
+
+            pass
 
     class ForeignKeyColumn(Column):
         """

@@ -14,8 +14,8 @@
                     "unique": false,
                     "default": null
                 },
-                "Name": {
-                    "name": "Name",
+                "Fullname": {
+                    "name": "Fullname",
                     "type": "VARCHAR",
                     "length": 100,
                     "nullable": false,

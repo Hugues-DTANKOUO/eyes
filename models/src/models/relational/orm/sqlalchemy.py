@@ -130,7 +130,6 @@ class SQLAlchemy(ORM):
     engine: Engine
     schema: str | None
     _metadata: MetaData
-    _engine_url: str
 
     class Table(ORM.Table):
         """
@@ -144,7 +143,7 @@ class SQLAlchemy(ORM):
 
         link_table: Table
         _name: str
-        columns_meta: list[ColumnMeta | ForeignKeyColumnMeta]
+        columns: list[SQLAlchemy.Column | SQLAlchemy.ForeignKeyColumn]
         unique_constraints: list[UniqueColumnsMeta]
         orm: SQLAlchemy
 
@@ -158,60 +157,15 @@ class SQLAlchemy(ORM):
 
             self._name = table.name
             self.link_table = copy(table)
-            self.columns_meta = []
+            self.columns = []
             for column in table.columns:
-                column_meta = ColumnMeta(
-                    name=column.name,
-                    type=get_column_type(cast(type, column.type)),
-                    length=getattr(column.type, "length", None),
-                    nullable=column.nullable or False,
-                    primary_key=column.primary_key,
-                    unique=column.unique or False,
-                    default=(
-                        cast_default(
-                            getattr(
-                                column.server_default.arg,
-                                "text",
-                                column.server_default.arg,
-                            ),
-                            cast(type, column.type),
-                        )
-                        if isinstance(column.server_default, DefaultClause)
-                        else None
-                    ),
-                )
                 if column.foreign_keys:
-                    column_meta = ForeignKeyColumnMeta(
-                        name=column.name,
-                        type=get_column_type(cast(type, column.type)),
-                        length=getattr(column.type, "length", None),
-                        nullable=column.nullable or False,
-                        primary_key=column.primary_key,
-                        unique=column.unique or False,
-                        default=(
-                            cast_default(
-                                getattr(
-                                    column.server_default.arg,
-                                    "text",
-                                    column.server_default.arg,
-                                ),
-                                cast(type, column.type),
-                            )
-                            if isinstance(column.server_default, DefaultClause)
-                            else None
-                        ),
-                        foreign_table_name=next(
-                            iter(column.foreign_keys)
-                        ).column.table.name,
-                        foreign_column_name=next(iter(column.foreign_keys)).column.name,
-                        on_delete=ForeignKeyAction.create(
-                            next(iter(column.foreign_keys)).ondelete or ""
-                        ),
-                        on_update=ForeignKeyAction.create(
-                            next(iter(column.foreign_keys)).onupdate or ""
-                        ),
+                    column_orm: SQLAlchemy.Column | SQLAlchemy.ForeignKeyColumn = (
+                        SQLAlchemy.ForeignKeyColumn(column, sql_alchemy_instance)
                     )
-                self.columns_meta.append(column_meta)
+                else:
+                    column_orm = SQLAlchemy.Column(column, sql_alchemy_instance)
+                self.columns.append(column_orm)
             self.unique_constraints = []
             for unique_constraint in table.constraints:
                 if (
@@ -219,12 +173,12 @@ class SQLAlchemy(ORM):
                     and unique_constraint.columns.__len__()
                 ):
                     if unique_constraint.columns.__len__() == 1:
-                        for column_meta in self.columns_meta:
+                        for column_alchemy in self.columns:
                             if (
-                                column_meta.name
+                                column_alchemy.meta.name
                                 == next(iter(unique_constraint.columns)).name
                             ):
-                                column_meta.unique = True
+                                column_alchemy.meta.unique = True
                     else:
                         self.unique_constraints.append(
                             UniqueColumnsMeta(
@@ -239,7 +193,7 @@ class SQLAlchemy(ORM):
         def add_column(
             self,
             column: ColumnMeta | ForeignKeyColumnMeta,
-        ) -> SQLAlchemy.Column:
+        ) -> SQLAlchemy.Column | SQLAlchemy.ForeignKeyColumn:
             """
             Ajoute une colonne à la table.
             :param column: Colonne à créer.
@@ -281,7 +235,7 @@ class SQLAlchemy(ORM):
                             else column.foreign_table_name
                         )
                         foreign_key = (
-                            f"FOREIGN KEY ({column.name}) REFERENCES {foreign_table_name} ({column.foreign_column_name})"
+                            f'FOREIGN KEY ("{column.name}") REFERENCES {foreign_table_name} ("{column.foreign_column_name}")'
                             f" ON DELETE {column.on_delete.value}"
                             f" ON UPDATE {column.on_update.value}"
                         )
@@ -291,13 +245,29 @@ class SQLAlchemy(ORM):
                     )
                     self.orm.execute(connection, alter_statement)
                     self = self.orm.get_table(self.name)
-                    return self.orm.Column(
-                        self.link_table.columns[column.name], self.orm
-                    )
+                    return self.get_column(column.name)
                 except Exception as e:
                     raise self.AddColumnError(
                         f"Impossible de créer la colonne {column.name} dans la table {self.name}."
                     ) from e
+
+        def get_column(
+            self, name: str
+        ) -> SQLAlchemy.Column | SQLAlchemy.ForeignKeyColumn:
+            """
+            Récupère une colonne de la table.
+            :param name: Nom de la colonne.
+            :return: Colonne.
+            """
+            try:
+                column = self.link_table.columns[name]
+                if column.foreign_keys:
+                    return SQLAlchemy.ForeignKeyColumn(column, self.orm)
+                return SQLAlchemy.Column(self.link_table.columns[name], self.orm)
+            except KeyError as e:
+                raise KeyError(
+                    f"La colonne {name} n'existe pas dans la table {self.name}."
+                ) from e
 
         @property
         def name(self) -> str:
@@ -339,6 +309,7 @@ class SQLAlchemy(ORM):
             """
             Crée une colonne.
             :param column: Colonne à créer.
+            :param sql_alchemy_instance: Instance de la couche ORM pour SQLAlchemy.
             :return: Colonne.
             """
 
@@ -371,6 +342,27 @@ class SQLAlchemy(ORM):
             )
             self.orm = sql_alchemy_instance
 
+        def set_name(self, name: str) -> SQLAlchemy.Column:
+            """
+            Modifie le nom de la colonne.
+            :param name: Nom de la colonne.
+            :return: Colonne.
+            """
+            try:
+                with self.orm.engine.connect() as connection:
+                    alter_statement = text(
+                        f'ALTER TABLE {self.orm.schema}."{self.link_column.table.name}"'
+                        f' RENAME COLUMN "{self.meta.name}" TO "{name}"'
+                    )
+                    self.orm.execute(connection, alter_statement)
+                    table = self.orm.get_table(self.link_column.table.name)
+                    self = cast(SQLAlchemy.Column, table.get_column(name))
+                    return self
+            except SQLAlchemyError as e:
+                raise self.orm.SQLExecutionError(
+                    f"Impossible de renommer la colonne {self.link_column.name} en {name}."
+                ) from e
+
     class ForeignKeyColumn(ORM.ForeignKeyColumn):
         """
         Classe de gestion des colonnes de clé étrangère.
@@ -392,7 +384,7 @@ class SQLAlchemy(ORM):
             self.link_column = copy(column)
 
             name = column.name
-            type_column = cast(ColumnType, column.type)
+            type_column = get_column_type(cast(type, column.type))
             length = int(getattr(column.type, "length", None) or 0) or None
             nullable = column.nullable or False
             primary_key = column.primary_key
@@ -426,6 +418,14 @@ class SQLAlchemy(ORM):
                 on_update=on_update,
             )
             self.orm = sql_alchemy_instance
+
+        def set_name(self, name: str) -> SQLAlchemy.ForeignKeyColumn:
+            """
+            Modifie le nom de la colonne.
+            :param name: Nom de la colonne.
+            :return: Colonne.
+            """
+            return cast(SQLAlchemy.ForeignKeyColumn, super().set_name(name))  # type: ignore
 
     class UniqueConstraint(ORM.UniqueConstraint):
         """
@@ -464,8 +464,7 @@ class SQLAlchemy(ORM):
         :param schema: Schéma/partition de la base de données.
         """
 
-        self._engine_url = engine_url
-        self.engine = create_engine(self._engine_url)
+        self.engine = create_engine(engine_url)
         self.schema = schema or None
         self._metadata = MetaData(schema=schema)
         self._metadata.reflect(bind=self.engine)
