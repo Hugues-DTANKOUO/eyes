@@ -22,7 +22,7 @@ def run() -> None:
     for module in MODULES:
         # Execute Ruff on the module
         print(f"Running Ruff on module {module.name}...")
-        subprocess.run(["ruff", "check", module.path], check=True)
+        subprocess.run(["ruff", "check", module.path, "--fix"], check=True)
 
         for linter in LINTERS:
             print(f"Running {linter} on module {module.name}...")
