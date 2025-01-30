@@ -1,16 +1,16 @@
 """
-Structure de base d'un modèle relationnel de données.
+Base structure for a relational data model.
 
 - Classes:
-    - Database: Base de données.
-    - SQLite: Base de données SQLite.
-    - PostgreSQL: Base de données PostgreSQL.
-    - MySQL: Base de données MySQL.
-    - OracleDB: Base de données Oracle.
-    - SQLServer: Base de données SQL Server.
-    - Table: Table de la base de données.
-    - Column: Colonne d'une table.
-    - ForeignKeyColumn: Colonne de clé étrangère.
+    - Database: Database.
+    - SQLite: SQLite database.
+    - PostgreSQL: PostgreSQL database.
+    - MySQL: MySQL database.
+    - OracleDB: Oracle database.
+    - SQLServer: SQL Server database.
+    - Table: Database table.
+    - Column: Table column.
+    - ForeignKeyColumn: Foreign key column.
 """
 
 from __future__ import annotations
@@ -42,12 +42,12 @@ FOREIGNKEY_COLUMN_ORM_TYPE = TypeVar(
 
 class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
     """
-    Classe abstraite représentant une base de données.
+    Abstract class representing a database.
 
-    :param _name: Nom de la base de données.
-    :param _type: Type de la base de données.
-    :param _orm: Couche ORM de la base de données.
-    :param tables: Tables de la base de données.
+    :param _name: Database name.
+    :param _type: Database type.
+    :param _orm: Database ORM layer.
+    :param tables: Database tables.
     """
 
     _name: str
@@ -58,10 +58,10 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
 
     def __init__(self, db_config: DbConfig | Path, orm_class_: Type[ORM_TYPE]) -> None:
         """
-        Constructeur de la base de données.
+        Database constructor.
 
-        :param db_config: Configuration de la base de données.
-        :param orm_class_: Classe de la couche ORM.
+        :param db_config: Database configuration.
+        :param orm_class_: ORM layer class.
         """
 
         if isinstance(db_config, DbConfig):
@@ -75,31 +75,31 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
                 self._type = DataBaseType.SQLITE
                 self._name = db_config.stem
             else:
-                raise ValueError("Le type de base de données n'est pas supporté.")
+                raise ValueError("Database type is not supported.")
         else:
-            raise ValueError("La configuration de la base de données est invalide.")
+            raise ValueError("Invalid database configuration.")
         self._orm = orm_class_(engine_url, self._schema)
         self._get_orm_tables()
 
     @property
     def name(self) -> str:
-        """Retourne le nom de la base de données."""
+        """Returns the database name."""
         return self._name
 
     @name.setter
     def name(self, _: str) -> None:
-        """Définit le nom de la base de données."""
-        raise AttributeError("Impossible de modifier le nom de la base de données.")
+        """Sets the database name."""
+        raise AttributeError("Cannot modify database name.")
 
     def disconnection(self) -> None:
-        """Déconnecte de la base de données."""
+        """Disconnects from the database."""
         self._orm.close_session()
 
     def get_orm_table(self, table_name: str) -> Type[TABLE_ORM_TYPE]:
         """
-        Récupère une table du type de la couche ORM.
+        Gets a table of ORM layer type.
 
-        :param table_name: Nom de la table.
+        :param table_name: Table name.
         :return: Table.
         """
         try:
@@ -107,11 +107,11 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         except self._orm.NoSuchTableError as e:
             raise self._orm.NoSuchTableError(e) from e
         except Exception as e:
-            raise Exception(f"Impossible de récupérer la table {table_name}.") from e
+            raise Exception(f"Cannot get table {table_name}.") from e
 
     def _get_orm_tables(self) -> None:
         """
-        Récupère les tables du type de la couche ORM.
+        Gets tables of ORM layer type.
         """
         try:
             self.tables = {
@@ -119,11 +119,11 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
                 for table_name, table in self._orm.get_tables().items()
             }
         except Exception as e:
-            raise Exception("Impossible de récupérer les tables.") from e
+            raise Exception("Cannot get tables.") from e
 
     def refresh(self) -> None:
         """
-        Rafraîchit les tables de la base de données.
+        Refreshes database tables.
         """
         self._get_orm_tables()
 
@@ -134,10 +134,10 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
     ) -> Type[TABLE_ORM_TYPE]:
         """
-        Récupère ou crée une table du type de la couche ORM.
-        :param table_name: Nom de la table.
-        :param columns: Colonnes de la table.
-        :param unique_constraints_columns: Contraintes d'unicité.
+        Gets or creates a table of ORM layer type.
+        :param table_name: Table name.
+        :param columns: Table columns.
+        :param unique_constraints_columns: Unique constraints.
         :return: Table.
         """
 
@@ -151,25 +151,23 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
         except self._orm.CreateTableError as e:
             raise self._orm.CreateTableError(e) from e
         except Exception as e:
-            raise Exception(
-                f"Impossible de récupérer ou créer la table {table_name}."
-            ) from e
+            raise Exception(f"Cannot get or create table {table_name}.") from e
 
     @abstractmethod
     def execute(self, query: str) -> Any:
         """
-        Exécute une requête sur la base de données.
+        Executes a query on the database.
 
-        :param query: Requête à exécuter.
-        :return: Résultat de la requête.
+        :param query: Query to execute.
+        :return: Query result.
         """
         pass
 
     def get_schema(self) -> DatabaseMetaDict:
         """
-        Récupère le schéma de la base de données.
+        Gets the database schema.
 
-        :return: Schéma de la base de données.
+        :return: Database schema.
         """
 
         self._get_orm_tables()
@@ -194,9 +192,9 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
 
     def save_schema(self, path: Path) -> None:
         """
-        Enregistre le schéma de la base de données dans un fichier JSON.
+        Saves the database schema to a JSON file.
 
-        :param path: Chemin du fichier JSON.
+        :param path: JSON file path.
         """
         with open(path, "w", encoding="latin1") as file:
             json.dump(self.get_schema(), file, indent=4)
@@ -204,119 +202,119 @@ class Database(Generic[ORM_TYPE, TABLE_ORM_TYPE], ABC):
 
 class SQLite(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
-    Représente une base de données SQLite.
+    Represents a SQLite database.
     """
 
     def __init__(self, db_config: Path, orm_class_: Type[ORM_TYPE]) -> None:
         """
-        Constructeur de la base de données SQLite.
+        SQLite database constructor.
 
-        :param db_config: Configuration de la base de données.
-        :param orm_class_: Classe de la couche ORM.
+        :param db_config: Database configuration.
+        :param orm_class_: ORM layer class.
         """
         super().__init__(db_config, orm_class_)
 
     def execute(self, query: str) -> Any:
         """
-        Exécute une requête sur la base de données SQLite.
+        Executes a query on the SQLite database.
 
-        :param query: Requête à exécuter.
-        :return: Résultat de la requête.
+        :param query: Query to execute.
+        :return: Query result.
         """
         pass
 
 
 class PostgreSQL(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
-    Représente une base de données PostgreSQL.
+    Represents a PostgreSQL database.
     """
 
     def __init__(self, db_config: DbConfig, orm_class_: Type[ORM_TYPE]) -> None:
         """
-        Constructeur de la base de données PostgreSQL.
+        PostgreSQL database constructor.
 
-        :param db_config: Configuration de la base de données.
-        :param orm_class_: Classe de la couche ORM.
+        :param db_config: Database configuration.
+        :param orm_class_: ORM layer class.
         """
         super().__init__(db_config, orm_class_)
 
     def execute(self, query: str) -> Any:
         """
-        Exécute une requête sur la base de données PostgreSQL.
+        Executes a query on the PostgreSQL database.
 
-        :param query: Requête à exécuter.
-        :return: Résultat de la requête.
+        :param query: Query to execute.
+        :return: Query result.
         """
         pass
 
 
 class MySQL(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
-    Représente une base de données MySQL.
+    Represents a MySQL database.
     """
 
     def __init__(self, db_config: DbConfig, orm_class_: Type[ORM_TYPE]) -> None:
         """
-        Constructeur de la base de données MySQL.
+        MySQL database constructor.
 
-        :param db_config: Configuration de la base de données.
-        :param orm_class_: Classe de la couche ORM.
+        :param db_config: Database configuration.
+        :param orm_class_: ORM layer class.
         """
         super().__init__(db_config, orm_class_)
 
     def execute(self, query: str) -> Any:
         """
-        Exécute une requête sur la base de données MySQL.
+        Executes a query on the MySQL database.
 
-        :param query: Requête à exécuter.
-        :return: Résultat de la requête.
+        :param query: Query to execute.
+        :return: Query result.
         """
         pass
 
 
 class OracleDB(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
-    Représente une base de données Oracle.
+    Represents an Oracle database.
     """
 
     def __init__(self, db_config: DbConfig, orm_class_: Type[ORM_TYPE]) -> None:
         """
-        Constructeur de la base de données Oracle.
+        Oracle database constructor.
 
-        :param db_config: Configuration de la base de données.
-        :param orm_class_: Classe de la couche ORM.
+        :param db_config: Database configuration.
+        :param orm_class_: ORM layer class.
         """
         super().__init__(db_config, orm_class_)
 
     def execute(self, query: str) -> Any:
         """
-        Exécute une requête sur la base de données Oracle.
+        Executes a query on the Oracle database.
 
-        :param query: Requête à exécuter.
-        :return: Résultat de la requête.
+        :param query: Query to execute.
+        :return: Query result.
         """
         pass
 
 
 class SQLServer(Database[ORM_TYPE, TABLE_ORM_TYPE]):
     """
-    Représente une base de données SQL Server.
+    Represents a SQL Server database.
     """
 
     def __init__(self, db_config: DbConfig, orm_class_: Type[ORM_TYPE]) -> None:
         """
-        Constructeur de la base de données SQL Server.
+        SQL Server database constructor.
 
-        :param db_config: Configuration de la base de données.
+        :param db_config: Database configuration.
         """
         super().__init__(db_config, orm_class_)
 
     def execute(self, query: str) -> Any:
         """
-        Exécute une requête sur la base de données SQL Server.
+        Executes a query on the SQL Server database.
 
-        :param query: Requête à exécuter.
-        :return: Résultat de la requête.
+        :param query: Query to execute.
+        :return: Query result.
         """
         pass
 
@@ -325,12 +323,12 @@ class Table(
     Generic[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
 ):
     """
-    Représente une table de la base de données.
+    Represents a database table.
 
-    :param name: Nom de la table.
-    :param database: Base de données à laquelle appartient la table.
-    :param columns: Colonnes de la table.
-    :param unique_contraints_columns: Liste des contraintes d'unicité.
+    :param name: Table name.
+    :param database: Database containing the table.
+    :param columns: Table columns.
+    :param unique_constraints_columns: List of unique constraints.
     """
 
     _db_name: str
@@ -353,12 +351,12 @@ class Table(
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
     ) -> None:
         """
-        Constructeur de la table.
+        Table constructor.
 
-        :param name: Nom de la table.
-        :param database: Base de données à laquelle appartient la table.
-        :param columns: Colonnes de la table.
-        :param unique_constraints_columns: Contraintes d'unicité.
+        :param name: Table name.
+        :param database: Database containing the table.
+        :param columns: Table columns.
+        :param unique_constraints_columns: Unique constraints.
         """
 
         try:
@@ -401,15 +399,15 @@ class Table(
         except database._orm.CreateTableError as e:
             raise database._orm.CreateTableError(e) from e
         except Exception as e:
-            raise Exception(f"Erreur lors de la création de la table {name}.") from e
+            raise Exception(f"Error while creating table {name}.") from e
 
     def __str__(self) -> str:
-        """Retourne une représentation de la table."""
-        return f"Table {self.vb_name} de la base de données {self.database.name}"
+        """Returns a string representation of the table."""
+        return f"Table {self.vb_name} from database {self.database.name}"
 
     @property
     def name(self) -> str:
-        """Retourne le nom de la table."""
+        """Returns the table name."""
         return self.vb_name
 
     @property
@@ -417,16 +415,14 @@ class Table(
         self,
     ) -> Column[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]:
         """
-        Retourne la colonne clé primaire de la table.
+        Returns the table's primary key column.
 
-        :return: Colonne clé primaire.
+        :return: Primary key column.
         """
         for column in self._columns:
             if column.primary_key:
                 return column
-        raise ValueError(
-            f"Aucune colonne clé primaire n'existe dans la table {self.vb_name}."
-        )
+        raise ValueError(f"No primary key column exists in table {self.vb_name}.")
 
     @property
     def columns(
@@ -437,24 +433,24 @@ class Table(
             ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE
         ]
     ]:
-        """Retourne les colonnes de la table."""
+        """Returns the table columns."""
         return self._columns
 
     @property
     def unique_columns(self) -> list[UniqueConstraint]:
-        """Retourne les contraintes d'unicité de la table."""
+        """Returns the table's unique constraints."""
         return self._unique_constraints_columns
 
     @property
     def db_name(self) -> str:
-        """Retourne le nom de la table dans la base de données."""
+        """Returns the table name in the database."""
         return self._db_name
 
     @db_name.setter
     def db_name(self, name: str) -> None:
         """
-        Modifie le nom de la table dans la base de données.
-        :param name: Nom de la table.
+        Changes the table name in the database.
+        :param name: Table name.
         """
         self._link_table.name = name  # type: ignore
         self._link_table = self.database.get_orm_table(name)
@@ -462,7 +458,7 @@ class Table(
 
     def refresh(self) -> None:
         """
-        Rafraîchit les données de la table.
+        Refreshes table data.
         """
         self._link_table = self.database.get_orm_table(self.vb_name)
         self._columns = [
@@ -487,16 +483,16 @@ class Table(
         ]
     ):
         """
-        Retourne une colonne de la table.
+        Returns a column from the table.
 
-        :param column_name: Nom de la colonne.
-        :return: Colonne.
+        :param column_name: Column name.
+        :return: Column.
         """
         for column in self._columns:
             if column.name == column_name:
                 return column
         raise ValueError(
-            f"La colonne {column_name} n'existe pas dans la table {self.vb_name}."
+            f"Column {column_name} does not exist in table {self.vb_name}."
         )
 
     def add_column(
@@ -508,10 +504,10 @@ class Table(
         ]
     ):
         """
-        Ajoute une colonne à la table.
+        Adds a column to the table.
 
-        :param column: Métadonnées de la colonne.
-        :return: Colonne.
+        :param column: Column metadata.
+        :return: Column.
         """
         column_orm_meta = cast(
             Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE], self._link_table.add_column(column_meta)  # type: ignore
@@ -529,16 +525,16 @@ class Column(
     Generic[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
 ):
     """
-    Représente une colonne d'une table.
+    Represents a table column.
 
-    :param name: Nom de la colonne.
-    :param type: Type de la colonne.
-    :param length: Longueur de la colonne.
-    :param nullable: Indique si la colonne peut être nulle.
-    :param primary_key: Indique si la colonne est une clé primaire.
-    :param default: Valeur par défaut de la colonne.
-    :param unique: Indique si la colonne est unique.
-    :param table: Table à laquelle appartient la colonne.
+    :param name: Column name.
+    :param type: Column type.
+    :param length: Column length.
+    :param nullable: Indicates if the column can be null.
+    :param primary_key: Indicates if the column is a primary key.
+    :param default: Column default value.
+    :param unique: Indicates if the column is unique.
+    :param table: Table containing the column.
     """
 
     _name: str
@@ -559,10 +555,10 @@ class Column(
         ],
     ) -> None:
         """
-        Constructeur de la colonne.
+        Column constructor.
 
-        :param meta_data: Métadonnées de la colonne.
-        :param table: Table à laquelle appartient la colonne.
+        :param meta_data: Column metadata.
+        :param table: Table containing the column.
         """
         self._name = meta_data.name
         self.type = meta_data.type
@@ -582,24 +578,24 @@ class Column(
         )
 
     def __str__(self) -> str:
-        """Retourne une représentation de la colonne."""
-        return f"Colonne {self.name} de type {self.type.value} de la table {self.table.vb_name}"
+        """Returns a string representation of the column."""
+        return f"Column {self.name} of type {self.type.value} from table {self.table.vb_name}"
 
     @property
     def name(self) -> str:
         """
-        Retourne le nom de la colonne.
+        Returns the column name.
 
-        :return: Nom de la colonne.
+        :return: Column name.
         """
         return self._name
 
     @name.setter
     def name(self, column_name: str) -> None:
         """
-        Modifie le nom de la colonne.
+        Changes the column name.
 
-        :param column_name: Nom de la colonne.
+        :param column_name: Column name.
         """
         self._link_column = cast(
             Type[COLUMN_ORM_TYPE | FOREIGNKEY_COLUMN_ORM_TYPE],
@@ -613,19 +609,19 @@ class ForeignKeyColumn(
     Column[ORM_TYPE, TABLE_ORM_TYPE, COLUMN_ORM_TYPE, FOREIGNKEY_COLUMN_ORM_TYPE]
 ):
     """
-    Représente une colonne de clé étrangère.
+    Represents a foreign key column.
 
-    :param name: Nom de la colonne.
-    :param type: Type de la colonne.
-    :param length: Longueur de la colonne.
-    :param nullable: Indique si la colonne peut être nulle.
-    :param primary_key: Indique si la colonne est une clé primaire.
-    :param default: Valeur par défaut de la colonne.
-    :param table: Table à laquelle appartient la colonne.
-    :param foreign_table: Table étrangère.
-    :param foreign_column: Colonne étrangère.
-    :param on_delete: Action sur suppression.
-    :param on_update: Action sur mise à jour.
+    :param name: Column name.
+    :param type: Column type.
+    :param length: Column length.
+    :param nullable: Indicates if the column can be null.
+    :param primary_key: Indicates if the column is a primary key.
+    :param default: Column default value.
+    :param table: Table containing the column.
+    :param foreign_table: Referenced table.
+    :param foreign_column: Referenced column.
+    :param on_delete: Action on delete.
+    :param on_update: Action on update.
     """
 
     foreign_table: Table[
@@ -645,10 +641,10 @@ class ForeignKeyColumn(
         ],
     ) -> None:
         """
-        Constructeur de la colonne de clé étrangère.
+        Foreign key column constructor.
 
-        :param meta_data: Métadonnées de la colonne.
-        :param table: Table à laquelle appartient la colonne.
+        :param meta_data: Column metadata.
+        :param table: Table containing the column.
         """
         super().__init__(meta_data, table)
         self.foreign_table = Table(meta_data.foreign_table_name, table.database)
@@ -659,20 +655,20 @@ class ForeignKeyColumn(
         self.on_update = meta_data.on_update
 
     def __str__(self) -> str:
-        """Retourne une représentation de la colonne de clé étrangère."""
+        """Returns a string representation of the foreign key column."""
         return (
-            f"Colonne {self.name} de type {self.type.value} de la table"
-            f" {self.table.vb_name} avec clé étrangère vers la table {self.foreign_table.vb_name}"
+            f"Column {self.name} of type {self.type.value} from table"
+            f" {self.table.vb_name} with foreign key to table {self.foreign_table.vb_name}"
         )
 
 
 class UniqueConstraint:
     """
-    Représente une contrainte d'unicité sur une table.
+    Represents a table unique constraint.
 
-    :param name: Nom de la contrainte d'unicité.
-    :param table: Table à laquelle appartient la contrainte d'unicité.
-    :param columns: Colonnes de la contrainte d'unicité.
+    :param name: Unique constraint name.
+    :param table: Table containing the unique constraint.
+    :param columns: Columns in the unique constraint.
     """
 
     name: str
@@ -681,10 +677,10 @@ class UniqueConstraint:
 
     def __init__(self, meta_data: UniqueColumnsMeta, table: Table) -> None:
         """
-        Constructeur de la contrainte d'unicité.
+        Unique constraint constructor.
 
-        :param meta_data: Métadonnées de la contrainte d'unicité.
-        :param table: Table à laquelle appartient la contrainte d'unicité.
+        :param meta_data: Unique constraint metadata.
+        :param table: Table containing the unique constraint.
         """
 
         self.name = meta_data.name
@@ -694,8 +690,8 @@ class UniqueConstraint:
         ]
 
     def __str__(self) -> str:
-        """Retourne une représentation de la contrainte d'unicité."""
+        """Returns a string representation of the unique constraint."""
         return (
-            f"Contrainte d'unicité {self.name} sur la table {self.table.vb_name} pour les colonnes : "
+            f"Unique constraint {self.name} on table {self.table.vb_name} for columns: "
             + ", ".join(column.name for column in self.columns)
         )

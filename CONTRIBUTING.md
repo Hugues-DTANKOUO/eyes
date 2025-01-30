@@ -1,50 +1,50 @@
-# Contribuer au projet *`Eyes`*
+# Contributing to `Eyes`
 
-Nous sommes ravis que vous envisagiez de contribuez à `Eyes` ! Toutes les contributions sont les bienvenues : améliorations de code, corrections de bugs, documentation, suggestions, etc.
+We're excited that you're interested in contributing to `Eyes`! All contributions are welcome: code improvements, bug fixes, documentation, suggestions, etc.
 
-## Comment contribuer
+## How to Contribute
 
-### Signaler des bugs
+### Reporting Bugs
 
-Si vous trouvez un bug, veuillez l'ouvrir sous forme d'issue en utilisant le modèle de rapport de bug fourni. Assurez-vous de décrire le problème de manière détaillée, en incluant : 
+If you find a bug, please open an issue using the provided bug report template. Make sure to include:
 
-- Les étapes pour reproduire le bug
-- Le comportement attendu
-- Le comportement observé
-- Des captures d'écran si possible
+- Steps to reproduce the bug
+- Expected behavior
+- Actual behavior
+- Screenshots if applicable
 
-### Suggérer des améliorations
+### Suggesting Improvements
 
-Pour toute suggestion d'amélioration ou demande de fonctionnalité, ouvrez une issue avec une description détaillée de l'amélioration proposée. Expliquez pourquoi vous pensez que cette amélioration serait utile et comment elle devrait fonctionner.
+For any improvement suggestions or feature requests, open an issue with a detailed description of the proposed enhancement. Explain why you think this improvement would be valuable and how it should work.
 
 ## Pull Requests
 
-Nous accueillons chaleuresement les pull requests. Voici quelques lignes directrices à suivre pour contribuer :
+We warmly welcome pull requests. Here are the guidelines to follow when contributing:
 
-#### 1. *Forker le dépôt* et suivez les instructions pour configurer votre espace de travail sur [VS Code](/docs/utilisatation-vs-code.md)
+#### 1. *Fork the repository* and follow the instructions to set up your workspace in [VS Code](/docs/utilisatation-vs-code.md)
 
-#### 2. *Installez les dépendances* et assurez-vous que le projet fonctionne correctement sur votre système. [(poetry)](/eyes/docs/python-3-poetry.md)
+#### 2. *Install dependencies* and ensure the project runs correctly on your system. [(poetry)](/eyes/docs/python-3-poetry.md)
 
-#### 3. *Suivez les conventions de code* du projet. Pour ce projet Python, nous suivons [PEP 8](https://peps.python.org/pep-0008/) ([Petit résumé de PEP 8](/docs/PEP8-resume-fr.md)), assurez-vous donc de l'avoir lu et de l'appliquer.
+#### 3. *Follow the project's code conventions*. For this Python project, we follow [PEP 8](https://peps.python.org/pep-0008/) ([Summary of PEP 8](/docs/PEP8-resume-fr.md)), so make sure you've read and apply it.
 
-#### 4. *Écrivez des tests pour les nouvelles fonctionnalités ou correction de bugs lorsque cela est possible.
+#### 4. *Write tests* for new features or bug fixes when possible.
 
-#### 5. *Documentez votre code*, en particulier les nouvelles fonctionnalités. Assurez-vous d'ajouter ou de mettre à jour les commentaires dans le code et la documentation du projet si nécessaire.
+#### 5. *Document your code*, especially new features. Make sure to add or update code comments and project documentation as needed.
 
-#### 6. *Exécutez les tests* existants pour vous assurer que vous n'avez pas introduit de régressions.
+#### 6. *Run existing tests* to ensure you haven't introduced any regressions.
 
-Dans le repertoire [/eyes](/eyes/), exécutez la commande :
+In the [/eyes](/eyes/) directory, run:
 ```shell
 poetry run check
 ```
 
-#### 7. *Soumettez votre pull request* avec une description détaillé de vos modifications. Incluez le contexte de ce que vous avez fait et pourquoi.
+#### 7. *Submit your pull request* with a detailed description of your changes. Include the context of what you've done and why.
 
-### Processus de revue des Pull Requests
+### Pull Request Review Process
 
-Chaque pull request sera examinée par les mainteneurs du projet. Nous pouvons demander des modifications ou apporter des suggestions avant de fusionner votre contribution. Nous visons à répondre aux PRs dans un délai de 2 jours maximum, mais selon le volume de contributions, cela peut varier.
+Each pull request will be reviewed by project maintainers. We may request changes or make suggestions before merging your contribution. We aim to respond to PRs within 2 days maximum, but this may vary depending on the volume of contributions.
 
-## Code de conduite
+## Code of Conduct
 
-En contribuant à ce projet, vous acceptez de respecter son code de conduite. Tout comportement inapproprié peut entraîner le retrait de votre contribution ou l'interdiction de participer.
-Vous vous engagez également à ne jamais revendiquer la parternité partielle ou totale de ce projet. Vous avez le droit d'être citer parmis les contributeurs et d'utiliser ce projet dans le cadre décrit par sa licence.
+By contributing to this project, you agree to abide by its code of conduct. Any inappropriate behavior may result in your contribution being removed or being banned from participating.
+You also agree to never claim partial or total ownership of this project. You have the right to be listed among the contributors and to use this project within the scope described by its license.

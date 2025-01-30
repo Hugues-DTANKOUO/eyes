@@ -1,34 +1,35 @@
-""" Variables globales de l'application. """
+""" Global variables and core classes of the application. """
 
 from __future__ import annotations
 
 import os
 
 
-# Nom de l'application
+# Application name
 APPLICATION_NAME: str = "Eyes"
 
-# Chemin du répertoire courant
+# Current directory path
 APPLICATION_DIR: str = os.path.dirname(os.path.realpath(__file__))
 
-# Chemin du répertoire du projet
+# Project directory path
 PROJECT_DIR: str = os.path.abspath(os.path.join(APPLICATION_DIR, *[os.pardir] * 3))
 
-# Erreur d'appel invalide
-INVALID_CALL_ERROR: str = "Cette méthode ne peut être appelée qu'une seule fois."
+# Invalid call error message
+INVALID_CALL_ERROR: str = "This method can only be called once."
 
 
 class ApplicationModuleError(Exception):
-    """Erreur de module de l'application."""
+    """Application module error."""
 
     pass
 
 
 class Module:
     """
-    Représente un module de l'application.
-    :param name: Nom du module.
-    :param path: Chemin du module.
+    Represents an application module.
+
+    :param name: Module name.
+    :param path: Module path.
     """
 
     _name: str = ""
@@ -37,37 +38,38 @@ class Module:
     _models: Module | None = None
 
     def __init__(self) -> None:
-        """Constructeur du module."""
+        """Module constructor."""
         pass
 
     def __str__(self) -> str:
-        """Retourne une représentation du module."""
+        """Returns a string representation of the module."""
 
         return f"Module({self.name}, {self.path})"
 
     def __repr__(self) -> str:
-        """Retourne une représentation du module."""
+        """Returns a string representation of the module."""
 
         return f"Module({self.name}, {self.path})"
 
     @property
     def name(self) -> str:
-        """Retourne le nom du module."""
+        """Returns the module name."""
 
         return self._name
 
     @property
     def path(self) -> str:
-        """Retourne le chemin du module."""
+        """Returns the module path."""
 
         return self._path
 
     def __create_module(self, name: str, directory_name: str) -> Module:
         """
-        Crée un module.
-        :param name: Nom du module.
-        :param directory_name: Nom du répertoire du module.
-        :return: Module créé.
+        Creates a module.
+
+        :param name: Module name.
+        :param directory_name: Module directory name.
+        :return: Created module.
         """
 
         if not self._name and not self._path:
@@ -79,7 +81,7 @@ class Module:
 
     @property
     def eyes(self) -> Module:
-        """Retourne le module de l'application."""
+        """Returns the application module."""
 
         if not self._eyes:
             self._eyes = self.__create_module(APPLICATION_NAME, "eyes")
@@ -88,7 +90,7 @@ class Module:
 
     @property
     def models(self) -> Module:
-        """Retourne le module de gestion des modèles."""
+        """Returns the models management module."""
 
         if not self._models:
             self._models = self.__create_module("Models", "models")
@@ -96,6 +98,6 @@ class Module:
         return self._models
 
 
-# Liste des modules de l'application
+# List of application modules
 EYES = Module().eyes
 MODELS = Module().models

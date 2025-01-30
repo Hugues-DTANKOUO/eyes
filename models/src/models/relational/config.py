@@ -1,9 +1,9 @@
 """
-Éléments de configuration d'une base de données.
+Database configuration elements.
 
 - Classes:
-    - DbConfig: Configuration d'une base de données.
-    - DataBaseType: Types de base de données.
+    - DbConfig: Database configuration.
+    - DataBaseType: Database types.
 """
 
 from __future__ import annotations
@@ -14,24 +14,24 @@ from pydantic import BaseModel, Field, field_validator
 
 class DbConfig(BaseModel):
     """
-    Eléments de configuration d'une base de données.
+    Database configuration elements.
 
-    :param host: Adresse du serveur de base de données.
-    :param port: Port du serveur de base de données.
-    :param type: Type de base de données.
-    :param user: Nom d'utilisateur de la base de données.
-    :param password: Mot de passe de la base de données.
-    :param database: Nom de la base de données.
-    :param schema: Schéma/Partition de la base de données.
+    :param host: Database server address.
+    :param port: Database server port.
+    :param type: Database type.
+    :param user: Database username.
+    :param password: Database password.
+    :param database: Database name.
+    :param schema: Database schema/partition.
     """
 
-    host: str = Field("localhost", title="Adresse du serveur de base de données")
-    port: int = Field(..., title="Port du serveur de base de données")
-    type: DataBaseType = Field(..., title="Type de base de données")
-    user: str = Field("root", title="Nom d'utilisateur de la base de données")
-    password: str = Field(..., title="Mot de passe de la base de données")
-    database: str = Field("test", title="Nom de la base de données")
-    db_schema: str | None = Field(None, title="Schéma/Partition de la base de données")
+    host: str = Field("localhost", title="Database server address")
+    port: int = Field(..., title="Database server port")
+    type: DataBaseType = Field(..., title="Database type")
+    user: str = Field("root", title="Database username")
+    password: str = Field(..., title="Database password")
+    database: str = Field("test", title="Database name")
+    db_schema: str | None = Field(None, title="Database schema/partition")
 
     def __init__(
         self,
@@ -44,14 +44,14 @@ class DbConfig(BaseModel):
         db_schema: str | None = None,
     ) -> None:
         """
-        Constructeur de la configuration de la base de données.
+        Database configuration constructor.
 
-        :param host: Adresse du serveur de base de données.
-        :param user: Nom d'utilisateur de la base de données.
-        :param type: Type de base de données.
-        :param password: Mot de passe de la base de données.
-        :param database: Nom de la base de données.
-        :param port: Port du serveur de base de données.
+        :param host: Database server address.
+        :param user: Database username.
+        :param type: Database type.
+        :param password: Database password.
+        :param database: Database name.
+        :param port: Database server port.
         """
 
         if port is None:
@@ -71,33 +71,31 @@ class DbConfig(BaseModel):
         )
 
     def __str__(self) -> str:
-        """Retourne une représentation de la configuration de la base de données."""
+        """Returns a string representation of the database configuration."""
         return f"DbConfig({self.host}, {self.port}, {self.user}, {self.database})"
 
     def __repr__(self) -> str:
-        """Retourne une représentation de la configuration de la base de données."""
+        """Returns a string representation of the database configuration."""
         return f"DbConfig({self.host}, {self.port}, {self.user}, {self.database})"
 
-    # Validateur pour le port
+    # Port validator
     @field_validator("port")
     def port_must_be_valid(cls, value: int) -> int:
         """
-        Vérifie que le port est un entier positif.
+        Verifies that the port is a valid positive integer.
 
-        :param value: Port du serveur de base de données.
-        :return: Port du serveur de base de données.
+        :param value: Database server port.
+        :return: Database server port.
         """
         if not (isinstance(value, int) or 1 <= abs(value) <= 65535):
-            raise ValueError(
-                "Le port doit être un entier positif compris entre 1 et 65535."
-            )
+            raise ValueError("Port must be a positive integer between 1 and 65535.")
         return abs(value)
 
     def get_engine_url(self) -> str:
         """
-        Retourne l'URL de connexion à la base de données.
+        Returns the database connection URL.
 
-        :return: URL de connexion à la base de données.
+        :return: Database connection URL.
         """
 
         parameters_url = (
@@ -114,7 +112,7 @@ class DbConfig(BaseModel):
 
 
 class DataBaseType(Enum):
-    """Types de base de données."""
+    """Database types."""
 
     MYSQL = "mysql"
     POSTGRESQL = "postgresql"
@@ -123,11 +121,11 @@ class DataBaseType(Enum):
     SQLSERVER = "sqlserver"
 
     def __str__(self) -> str:
-        """Retourne une représentation du type de base de données."""
+        """Returns a string representation of the database type."""
         return self.value
 
     def default_port(self) -> int:
-        """Retourne le port par défaut du type de base de données."""
+        """Returns the default port for the database type."""
 
         return {
             DataBaseType.MYSQL: 3306,
@@ -138,7 +136,7 @@ class DataBaseType(Enum):
         }[self]
 
     def default_schema(self) -> str:
-        """Retourne le schéma par défaut du type de base de données."""
+        """Returns the default schema for the database type."""
 
         return {
             DataBaseType.MYSQL: "mysql",

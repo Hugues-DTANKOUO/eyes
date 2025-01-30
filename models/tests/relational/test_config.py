@@ -3,12 +3,12 @@ from models.relational.db_schema import DbConfig, DataBaseType
 
 def test_db_config() -> None:
     """
-    ÉTANT DONNÉ une configuration de base de données,
-    QUAND la configuration est initialisée,
-    ALORS les attributs sont correctement initialisés.
+    GIVEN a database configuration,
+    WHEN the configuration is initialized,
+    THEN the attributes are correctly set.
     """
 
-    # Configuration de la base de données
+    # Database configuration
     db_config = DbConfig(
         host="localhost",
         type=DataBaseType.POSTGRESQL,
@@ -17,7 +17,7 @@ def test_db_config() -> None:
         password="test",
     )
 
-    # Attributs
+    # Attributes
     assert db_config.host == "localhost"
     assert db_config.type == DataBaseType.POSTGRESQL
     assert db_config.database == "test"

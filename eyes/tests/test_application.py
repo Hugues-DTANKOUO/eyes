@@ -12,12 +12,12 @@ from eyes.application import (
 
 def test_globals_variables() -> None:
     """
-    ÉTANT DONNÉ le projet eyes.
-    QUAND le projet est initialisé
-    ALORS les variables globales sont correctement initialisées.
+    GIVEN the eyes project
+    WHEN the project is initialized
+    THEN global variables are correctly initialized
     """
 
-    # Variables globales
+    # Global variables
     assert APPLICATION_NAME == "Eyes"
     assert PROJECT_DIR == os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -33,12 +33,12 @@ def test_globals_variables() -> None:
 
 def test_invalid_module_creation() -> None:
     """
-    ÉTANT DONNÉ un module du projet eyes.
-    QUAND on essaye de créer un autre module avec une propriété de ce dernier
-    ALORS une erreur est levée.
+    GIVEN a module from the eyes project
+    WHEN trying to create another module using a property of the first one
+    THEN an error is raised
     """
 
-    # Tentative de création multiple d'un module
+    # Attempt to create multiple modules
     module = Module().eyes
     try:
         module.models

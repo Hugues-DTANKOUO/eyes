@@ -30,10 +30,10 @@ from models.relational.metadata import (
 
 def get_sqlalchemy_type(column_type: ColumnType, column_length: int | None) -> type:
     """
-    Retourne le type SQLAlchemy correspondant à un type de colonne.
-    :param column_type: Type de colonne.
-    :param column_length: Longueur de la colonne.
-    :return: Type SQLAlchemy.
+    Returns the SQLAlchemy type corresponding to a column type.
+    :param column_type: Column type.
+    :param column_length: Column length.
+    :return: SQLAlchemy type.
     """
 
     type_alchemy = {
@@ -54,10 +54,10 @@ def cast_to_sqlalchemy_type(
     column_type: ColumnType, column_length: int | None
 ) -> Integer | String | DateTime | Boolean | Float | Date | Text:
     """
-    Convertit un type de colonne en type SQLAlchemy.
-    :param column_type: Type de colonne.
-    :param column_length: Longueur de la colonne.
-    :return: Type de colonne SQLAlchemy.
+    Converts a column type to SQLAlchemy type.
+    :param column_type: Column type.
+    :param column_length: Column length.
+    :return: SQLAlchemy column type.
     """
     return cast(
         Integer | String | DateTime | Boolean | Float | Date | Text,
@@ -67,9 +67,9 @@ def cast_to_sqlalchemy_type(
 
 def get_column_type(column_type: type) -> ColumnType:
     """
-    Retourne le type de colonne correspondant à un type SQLAlchemy.
-    :param column_type: Type SQLAlchemy.
-    :return: Type de colonne.
+    Returns the column type corresponding to a SQLAlchemy type.
+    :param column_type: SQLAlchemy type.
+    :return: Column type.
     """
 
     column_type_str = str(column_type).split("(")[0]
@@ -87,10 +87,10 @@ def get_column_type(column_type: type) -> ColumnType:
 
 def cast_default(default: Any | None, column_type: type) -> Any:
     """
-    Convertit la valeur par défaut d'une colonne.
-    :param default: Valeur par défaut.
-    :param column_type: Type de la colonne.
-    :return: Valeur par défaut.
+    Converts a column's default value.
+    :param default: Default value.
+    :param column_type: Column type.
+    :return: Converted default value.
     """
 
     column_type_str = str(column_type).split("(")[0]
@@ -118,17 +118,17 @@ def cast_default(default: Any | None, column_type: type) -> Any:
 
 class SQLAlchemy(ORM):
     """
-    Classe de gestion de la couche ORM pour SQLAlchemy.
+    SQLAlchemy ORM layer management class.
 
     - Classes:
-        - Table: Classe de gestion des tables.
-        - Column: Classe de gestion des colonnes.
-        - NoSuchTableError: Erreur de table inexistante.
+        - Table: Table management class.
+        - Column: Column management class.
+        - NoSuchTableError: Table not found error.
 
-    - Attributs:
-        - engine: Moteur de connexion à la base de données.
-        - schema: Schéma/partition de la base de données.
-        - _metadata: Métadonnées de la base de données.
+    - Attributes:
+        - engine: Database connection engine.
+        - schema: Database schema/partition.
+        - _metadata: Database metadata.
     """
 
     engine: Engine
@@ -137,14 +137,14 @@ class SQLAlchemy(ORM):
 
     class Table(ORM.Table):
         """
-        Classe de gestion des tables.
+        Table management class.
 
-        - Attributs:
-            - _link_table: Table liée.
-            - name: Nom de la table.
-            - columns: Colonnes de la table.
-            - unique_constraints: Contraintes d'unicité.
-            - orm: ORM.
+        - Attributes:
+            - _link_table: Linked table.
+            - name: Table name.
+            - columns: Table columns.
+            - unique_constraints: Unique constraints.
+            - orm: ORM instance.
         """
 
         _link_table: Table
@@ -155,9 +155,9 @@ class SQLAlchemy(ORM):
 
         def __init__(self, table: Table, sql_alchemy_instance: SQLAlchemy) -> None:
             """
-            Crée une table.
-            :param table: Table à créer.
-            :param sql_alchemy_instance: Instance de la couche ORM pour SQLAlchemy.
+            Creates a table.
+            :param table: Table to create.
+            :param sql_alchemy_instance: SQLAlchemy ORM instance.
             :return: Table.
             """
 
@@ -202,15 +202,15 @@ class SQLAlchemy(ORM):
             column: ColumnMeta | ForeignKeyColumnMeta,
         ) -> SQLAlchemy.Column | SQLAlchemy.ForeignKeyColumn:
             """
-            Ajoute une colonne à la table.
-            :param column: Colonne à créer.
-            :return: Colonne.
+            Adds a column to the table.
+            :param column: Column to create.
+            :return: Column.
             """
 
             if self.has_column(column.name):
                 raise self.AddColumnError(
-                    f"Impossible de créer la colonne {column.name}.\n"
-                    f"La colonne existe déjà dans la table {self.name}."
+                    f"Cannot create column {column.name}.\n"
+                    f"Column already exists in table {self.name}."
                 )
 
             with self.orm.engine.connect() as connection:
@@ -239,37 +239,37 @@ class SQLAlchemy(ORM):
                     return self.get_column(column.name)
                 except Exception as e:
                     raise self.AddColumnError(
-                        f"Impossible de créer la colonne {column.name} dans la table {self.name}."
+                        f"Cannot create column {column.name} in table {self.name}."
                     ) from e
 
         def get_column(
             self, name: str
         ) -> SQLAlchemy.Column | SQLAlchemy.ForeignKeyColumn:
             """
-            Récupère une colonne de la table.
-            :param name: Nom de la colonne.
-            :return: Colonne.
+            Gets a column from the table.
+            :param name: Column name.
+            :return: Column.
             """
             if self.has_column(name):
                 column = self._link_table.columns[name]
                 if column.foreign_keys:
                     return SQLAlchemy.ForeignKeyColumn(column, self)
                 return SQLAlchemy.Column(column, self)
-            raise KeyError(f"La colonne {name} n'existe pas dans la table {self.name}.")
+            raise KeyError(f"Column {name} does not exist in table {self.name}.")
 
         def has_column(self, name: str) -> bool:
             """
-            Vérifie si une colonne existe dans la table.
-            :param name: Nom de la colonne.
-            :return: Vrai si la colonne existe, faux sinon.
+            Checks if a column exists in the table.
+            :param name: Column name.
+            :return: True if the column exists, false otherwise.
             """
             return name in self._link_table.columns
 
         @property
         def name(self) -> str:
             """
-            Retourne le nom de la table.
-            :return: Nom de la table.
+            Returns the table name.
+            :return: Table name.
             """
 
             return self._name
@@ -277,8 +277,8 @@ class SQLAlchemy(ORM):
         @name.setter
         def name(self, name: str) -> None:
             """
-            Modifie le nom de la table.
-            :param name: Nom de la table.
+            Changes the table name.
+            :param name: Table name.
             """
             try:
                 with self.orm.engine.connect() as connection:
@@ -291,12 +291,12 @@ class SQLAlchemy(ORM):
                     self = self.orm.get_table(name)
             except SQLAlchemyError as e:
                 raise self.orm.SQLExecutionError(
-                    f"Impossible de renommer la table {self._name} en {name}."
+                    f"Cannot rename table {self._name} to {name}."
                 ) from e
 
     class Column(ORM.Column):
         """
-        Classe de gestion des colonnes.
+        Column management class.
         """
 
         meta: ColumnMeta
@@ -305,10 +305,10 @@ class SQLAlchemy(ORM):
 
         def __init__(self, column: Column, table: SQLAlchemy.Table) -> None:
             """
-            Crée une colonne.
-            :param column: Colonne à créer.
-            :param table: Table de la colonne.
-            :return: Colonne.
+            Creates a column.
+            :param column: Column to create.
+            :param table: Column's table.
+            :return: Column.
             """
 
             self._link_column = column
@@ -342,9 +342,9 @@ class SQLAlchemy(ORM):
 
         def set_name(self, name: str) -> SQLAlchemy.Column:
             """
-            Modifie le nom de la colonne.
-            :param name: Nom de la colonne.
-            :return: Colonne.
+            Changes the column name.
+            :param name: Column name.
+            :return: Column.
             """
             try:
                 with self.table.orm.engine.connect() as connection:
@@ -362,12 +362,12 @@ class SQLAlchemy(ORM):
                     return self
             except SQLAlchemyError as e:
                 raise self.orm.SQLExecutionError(
-                    f"Impossible de renommer la colonne {self._link_column.name} en {name}."
+                    f"Cannot rename column {self._link_column.name} to {name}."
                 ) from e
 
     class ForeignKeyColumn(ORM.ForeignKeyColumn):
         """
-        Classe de gestion des colonnes de clé étrangère.
+        Foreign key column management class.
         """
 
         _link_column: Column
@@ -375,10 +375,10 @@ class SQLAlchemy(ORM):
 
         def __init__(self, column: Column, table: SQLAlchemy.Table) -> None:
             """
-            Crée une colonne.
-            :param column: Colonne à créer.
-            :param table: Table de la colonne.
-            :return: Colonne.
+            Creates a column.
+            :param column: Column to create.
+            :param table: Column's table.
+            :return: Column.
             """
 
             foreign_key = next(iter(column.foreign_keys))
@@ -423,24 +423,24 @@ class SQLAlchemy(ORM):
 
         def set_name(self, name: str) -> SQLAlchemy.ForeignKeyColumn:
             """
-            Modifie le nom de la colonne.
-            :param name: Nom de la colonne.
-            :return: Colonne.
+            Changes the column name.
+            :param name: Column name.
+            :return: Column.
             """
             return cast(SQLAlchemy.ForeignKeyColumn, super().set_name(name))  # type: ignore
 
     class UniqueConstraint(ORM.UniqueConstraint):
         """
-        Classe de gestion des contraintes d'unicité.
+        Unique constraint management class.
         """
 
         link_constraint: UniqueConstraint
 
         def __init__(self, constraint: UniqueConstraint) -> None:
             """
-            Crée une contrainte d'unicité.
-            :param constraint: Contrainte d'unicité à créer.
-            :return: Contrainte d'unicité.
+            Creates a unique constraint.
+            :param constraint: Unique constraint to create.
+            :return: Unique constraint.
             """
 
             self.link_constraint = constraint
@@ -449,16 +449,16 @@ class SQLAlchemy(ORM):
 
     class NoSuchTableError(SQLAlchemyNoSuchTableError):
         """
-        Erreur de table inexistante.
+        Table not found error.
         """
 
         pass
 
     def __init__(self, engine_url: str, schema: str) -> None:
         """
-        Constructeur de la couche ORM pour SQLAlchemy.
-        :param engine_url: URL de connexion à la base de données.
-        :param schema: Schéma/partition de la base de données.
+        SQLAlchemy ORM layer constructor.
+        :param engine_url: Database connection URL.
+        :param schema: Database schema/partition.
         """
 
         self.engine = create_engine(engine_url)
@@ -473,10 +473,10 @@ class SQLAlchemy(ORM):
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
     ) -> SQLAlchemy.Table:
         """
-        Récupère ou crée une table.
-        :param table_name: Nom de la table.
-        :param columns: Colonnes de la table.
-        :param unique_constraints_columns: Contraintes d'unicité.
+        Gets or creates a table.
+        :param table_name: Table name.
+        :param columns: Table columns.
+        :param unique_constraints_columns: Unique constraints.
         :return: Table.
         """
         try:
@@ -487,8 +487,8 @@ class SQLAlchemy(ORM):
                     break
             if not has_primary_key:
                 raise self.CreateTableError(
-                    f"Impossible de créer la table {table_name}.\n"
-                    "Aucune colonne primaire n'a été spécifiée."
+                    f"Cannot create table {table_name}.\n"
+                    "No primary key column specified."
                 )
             table = Table(
                 table_name,
@@ -538,13 +538,11 @@ class SQLAlchemy(ORM):
             table.create(bind=self.engine, checkfirst=True)
             return self.Table(table, self)
         except Exception as e:
-            raise self.CreateTableError(
-                f"Impossible de créer la table {table_name}."
-            ) from e
+            raise self.CreateTableError(f"Cannot create table {table_name}.") from e
 
     def get_tables(self) -> dict[str, ORM.Table]:
         """
-        Récupère les tables de la base de données.
+        Gets all database tables.
         :return: Tables.
         """
 
@@ -555,41 +553,41 @@ class SQLAlchemy(ORM):
 
     def get_table(self, table_name: str) -> SQLAlchemy.Table:
         """
-        Récupère une table de la base de données.
-        :param table_name: Nom de la table.
+        Gets a database table.
+        :param table_name: Table name.
         :return: Table.
         """
         table_name = f"{self.schema}.{table_name}" if self.schema else table_name
         if table_name not in self._metadata.tables:
-            raise self.NoSuchTableError(f"La table {table_name} n'existe pas.")
+            raise self.NoSuchTableError(f"Table {table_name} does not exist.")
         return self.Table(self._metadata.tables[table_name], self)
 
     @staticmethod
     def get_no_such_table_error() -> Type[SQLAlchemyNoSuchTableError]:
         """
-        Retourne l'erreur de table inexistante.
-        :return: Erreur de table inexistante.
+        Returns the table not found error.
+        :return: Table not found error.
         """
 
         return SQLAlchemyNoSuchTableError
 
     def refresh_metadata(self) -> None:
         """
-        Rafraîchit les métadonnées de la base de données.
+        Refreshes database metadata.
         """
         self._metadata = MetaData(schema=self.schema)
         self._metadata.reflect(bind=self.engine)
 
     def execute(self, connection: Connection, statement: TextClause) -> None:
         """
-        Exécute une requête SQL.
-        :param connection: Connexion à la base de données.
-        :param statement: Requête SQL.
+        Executes an SQL query.
+        :param connection: Database connection.
+        :param statement: SQL query.
         """
         connection.execute(statement)
         connection.commit()
         self.refresh_metadata()
 
     def close_session(self) -> None:
-        """Ferme la connexion à la base de données."""
+        """Closes database connection."""
         self.engine.dispose()

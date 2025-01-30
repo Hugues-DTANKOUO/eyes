@@ -1,17 +1,17 @@
 """
-Méta-données d'un schéma de base de données.
+Database schema metadata.
 
 - Classes:
-    - ColumnMetaDict: Dictionnaire des métadonnées d'une colonne.
-    - ColumnMeta: Métadonnées d'une colonne.
-    - ForeignKeyColumnMetaDict: Dictionnaire des métadonnées d'une colonne de clé étrangère.
-    - ForeignKeyColumnMeta: Métadonnées d'une colonne de clé étrangère.
-    - ColumnType: Types de colonnes.
-    - DefaultDate: Types de dates par défaut.
-    - ForeignKeyAction: Actions de clé étrangère.
-    - UniqueColumnsMeta: Métadonnées des colonnes uniques.
-    - TableMetaDict: Dictionnaire des métadonnées d'une table.
-    - DatabaseMetaDict: Dictionnaire des métadonnées d'une base de données.
+    - ColumnMetaDict: Column metadata dictionary.
+    - ColumnMeta: Column metadata.
+    - ForeignKeyColumnMetaDict: Foreign key column metadata dictionary.
+    - ForeignKeyColumnMeta: Foreign key column metadata.
+    - ColumnType: Column types.
+    - DefaultDate: Default date types.
+    - ForeignKeyAction: Foreign key actions.
+    - UniqueColumnsMeta: Unique columns metadata.
+    - TableMetaDict: Table metadata dictionary.
+    - DatabaseMetaDict: Database metadata dictionary.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from datetime import datetime, date
 
 class ColumnType(str, Enum):
     """
-    Types de colonnes.
+    Column types.
     """
 
     INT = "INT"
@@ -39,7 +39,7 @@ class ColumnType(str, Enum):
 
 class DefaultDate(str, Enum):
     """
-    Types de colonnes.
+    Date types.
     """
 
     CURRENT_DATE = "today"
@@ -48,7 +48,7 @@ class DefaultDate(str, Enum):
 
 class ForeignKeyAction(str, Enum):
     """
-    Actions de clé étrangère.
+    Foreign key actions.
     """
 
     CASCADE = "CASCADE"
@@ -60,10 +60,10 @@ class ForeignKeyAction(str, Enum):
     @staticmethod
     def create(action: str) -> ForeignKeyAction:
         """
-        Crée une action de clé étrangère.
+        Creates a foreign key action.
 
-        :param action: Action de clé étrangère.
-        :return: Action de clé étrangère.
+        :param action: Foreign key action.
+        :return: Foreign key action.
         """
 
         return {
@@ -78,15 +78,15 @@ class ForeignKeyAction(str, Enum):
 
 class ColumnMetaDict(TypedDict):
     """
-    Dictionnaire des métadonnées d'une colonne.
+    Column metadata dictionary.
 
-    :param name: Nom de la colonne.
-    :param type: Type de colonne.
-    :param length: Longueur de la colonne.
-    :param nullable: Colonne nullable.
-    :param primary_key: Colonne clé primaire.
-    :param unique: Colonne unique.
-    :param default: Valeur par défaut de la colonne.
+    :param name: Column name.
+    :param type: Column type.
+    :param length: Column length.
+    :param nullable: Nullable column.
+    :param primary_key: Primary key column.
+    :param unique: Unique column.
+    :param default: Column default value.
     """
 
     name: str
@@ -100,15 +100,15 @@ class ColumnMetaDict(TypedDict):
 
 class ColumnMeta(BaseModel):
     """
-    Métadonnées d'une colonne.
+    Column metadata.
 
-    :param name: Nom de la colonne.
-    :param type: Type de colonne.
-    :param length: Longueur de la colonne.
-    :param nullable: Colonne nullable.
-    :param primary_key: Colonne clé primaire.
-    :param unique: Colonne unique.
-    :param default: Valeur par défaut de la colonne.
+    :param name: Column name.
+    :param type: Column type.
+    :param length: Column length.
+    :param nullable: Nullable column.
+    :param primary_key: Primary key column.
+    :param unique: Unique column.
+    :param default: Column default value.
     """
 
     name: str
@@ -122,10 +122,10 @@ class ColumnMeta(BaseModel):
     @field_validator("length")
     def check_length(cls, value: int | None, info: ValidationInfo) -> int | None:
         """
-        Vérifie la longueur de la colonne.
+        Validates column length.
 
-        :param value: Longueur de la colonne.
-        :param info: Informations de validation.
+        :param value: Column length.
+        :param info: Validation information.
         """
 
         if value is not None:
@@ -133,60 +133,44 @@ class ColumnMeta(BaseModel):
                 info.data["type"] != ColumnType.VARCHAR
                 and info.data["type"] != ColumnType.TEXT
             ):
-                raise ValueError(
-                    "La longueur n'est pas supportée pour ce type de colonne."
-                )
+                raise ValueError("Length is not supported for this column type.")
 
             if value <= 0:
-                raise ValueError("La longueur doit être positive.")
+                raise ValueError("Length must be positive.")
 
             if info.data["type"] == ColumnType.TEXT and value > 65535:
-                raise ValueError(
-                    "La longueur maximale pour un champ TEXT est de 65535."
-                )
+                raise ValueError("Maximum length for a TEXT field is 65535.")
 
             if info.data["type"] == ColumnType.VARCHAR and value > 255:
-                raise ValueError(
-                    "La longueur maximale pour un champ VARCHAR est de 255."
-                )
+                raise ValueError("Maximum length for a VARCHAR field is 255.")
 
         return value
 
     @field_validator("default")
     def check_default(cls, value: Any, info: ValidationInfo) -> Any:
         """
-        Vérifie la valeur par défaut de la colonne.
+        Validates column default value.
 
-        :param value: Valeur par défaut de la colonne.
-        :param info: Informations de validation.
-        :return: Valeur par défaut de la colonne.
+        :param value: Column default value.
+        :param info: Validation information.
+        :return: Column default value.
         """
 
         if value is not None:
             if info.data["type"] == ColumnType.BOOLEAN and not isinstance(value, bool):
-                raise ValueError(
-                    "La valeur par défaut doit être un booléen pour un champ BOOLEAN."
-                )
+                raise ValueError("Default value must be a boolean for a BOOLEAN field.")
 
             if info.data["type"] == ColumnType.INT and not isinstance(value, int):
-                raise ValueError(
-                    "La valeur par défaut doit être un entier pour un champ INT."
-                )
+                raise ValueError("Default value must be an integer for an INT field.")
 
             if info.data["type"] == ColumnType.DECIMAL and not isinstance(value, float):
-                raise ValueError(
-                    "La valeur par défaut doit être un flottant pour un champ DECIMAL."
-                )
+                raise ValueError("Default value must be a float for a DECIMAL field.")
 
             if info.data["type"] == ColumnType.VARCHAR and not isinstance(value, str):
-                raise ValueError(
-                    "La valeur par défaut doit être une chaîne de caractères pour un champ VARCHAR."
-                )
+                raise ValueError("Default value must be a string for a VARCHAR field.")
 
             if info.data["type"] == ColumnType.TEXT and not isinstance(value, str):
-                raise ValueError(
-                    "La valeur par défaut doit être une chaîne de caractères pour un champ TEXT."
-                )
+                raise ValueError("Default value must be a string for a TEXT field.")
 
             if info.data["type"] == ColumnType.DATE:
                 if isinstance(value, date):
@@ -210,12 +194,10 @@ class ColumnMeta(BaseModel):
                         return date.today()
                     else:
                         raise ValueError(
-                            "Cette valeur n'est pas supportée pour un champ DATE."
+                            "This value is not supported for a DATE field."
                         )
                 else:
-                    raise ValueError(
-                        "Cette valeur n'est pas supportée pour un champ DATE."
-                    )
+                    raise ValueError("This value is not supported for a DATE field.")
 
             if info.data["type"] == ColumnType.DATETIME:
                 if isinstance(value, datetime):
@@ -242,20 +224,20 @@ class ColumnMeta(BaseModel):
                         return datetime.now()
                     else:
                         raise ValueError(
-                            "Cette valeur n'est pas supportée pour un champ DATETIME."
+                            "This value is not supported for a DATETIME field."
                         )
                 else:
                     raise ValueError(
-                        "Cette valeur n'est pas supportée pour un champ DATETIME."
+                        "This value is not supported for a DATETIME field."
                     )
 
         return value
 
     def get_dict(self) -> ColumnMetaDict:
         """
-        Récupère les métadonnées de la colonne sous forme de dictionnaire.
+        Gets column metadata as a dictionary.
 
-        :return: Métadonnées de la colonne sous forme de dictionnaire.
+        :return: Column metadata dictionary.
         """
 
         return {
@@ -271,19 +253,19 @@ class ColumnMeta(BaseModel):
 
 class ForeignKeyColumnMetaDict(ColumnMetaDict):
     """
-    Dictionnaire des métadonnées d'une colonne de clé étrangère.
+    Foreign key column metadata dictionary.
 
-    :param name: Nom de la colonne.
-    :param type: Type de colonne.
-    :param length: Longueur de la colonne.
-    :param nullable: Colonne nullable.
-    :param primary_key: Colonne clé primaire.
-    :param unique: Colonne unique.
-    :param default: Valeur par défaut de la colonne.
-    :param foreign_table_name: Nom de la table étrangère.
-    :param foreign_column_name: Nom de la colonne étrangère.
-    :param on_delete: Action en cas de suppression.
-    :param on_update: Action en cas de mise à jour.
+    :param name: Column name.
+    :param type: Column type.
+    :param length: Column length.
+    :param nullable: Nullable column.
+    :param primary_key: Primary key column.
+    :param unique: Unique column.
+    :param default: Column default value.
+    :param foreign_table_name: Referenced table name.
+    :param foreign_column_name: Referenced column name.
+    :param on_delete: Action on delete.
+    :param on_update: Action on update.
     """
 
     foreign_table: str
@@ -294,19 +276,19 @@ class ForeignKeyColumnMetaDict(ColumnMetaDict):
 
 class ForeignKeyColumnMeta(ColumnMeta):
     """
-    Métadonnées d'une colonne de clé étrangère.
+    Foreign key column metadata.
 
-    :param name: Nom de la colonne.
-    :param type: Type de colonne.
-    :param length: Longueur de la colonne.
-    :param nullable: Colonne nullable.
-    :param primary_key: Colonne clé primaire.
-    :param unique: Colonne unique.
-    :param default: Valeur par défaut de la colonne.
-    :param foreign_table_name: Nom de la table étrangère.
-    :param foreign_column_name: Nom de la colonne étrangère.
-    :param on_delete: Action en cas de suppression.
-    :param on_update: Action en cas de mise à jour.
+    :param name: Column name.
+    :param type: Column type.
+    :param length: Column length.
+    :param nullable: Nullable column.
+    :param primary_key: Primary key column.
+    :param unique: Unique column.
+    :param default: Column default value.
+    :param foreign_table_name: Referenced table name.
+    :param foreign_column_name: Referenced column name.
+    :param on_delete: Action on delete.
+    :param on_update: Action on update.
     """
 
     foreign_table_name: str
@@ -316,9 +298,9 @@ class ForeignKeyColumnMeta(ColumnMeta):
 
     def get_dict(self) -> ForeignKeyColumnMetaDict:
         """
-        Récupère les métadonnées de la colonne sous forme de dictionnaire.
+        Gets column metadata as a dictionary.
 
-        :return: Métadonnées de la colonne sous forme de dictionnaire.
+        :return: Column metadata dictionary.
         """
 
         return {
@@ -338,10 +320,10 @@ class ForeignKeyColumnMeta(ColumnMeta):
 
 class UniqueColumnsMeta(BaseModel):
     """
-    Métadonnées des colonnes uniques.
+    Unique columns metadata.
 
-    :param name: Nom de la contrainte.
-    :param columns: Colonnes uniques.
+    :param name: Constraint name.
+    :param columns: Unique columns.
     """
 
     name: str
@@ -350,11 +332,11 @@ class UniqueColumnsMeta(BaseModel):
 
 class TableMetaDict(TypedDict):
     """
-    Dictionnaire des métadonnées d'une table.
+    Table metadata dictionary.
 
-    :param name: Nom de la table.
-    :param columns: Colonnes de la table.
-    :param unique_columns: Colonnes uniques de la table.
+    :param name: Table name.
+    :param columns: Table columns.
+    :param unique_columns: Table unique columns.
     """
 
     name: str
@@ -364,11 +346,11 @@ class TableMetaDict(TypedDict):
 
 class DatabaseMetaDict(TypedDict):
     """
-    Dictionnaire des métadonnées d'une base de données.
+    Database metadata dictionary.
 
-    :param name: Nom de la base de données.
-    :param type: Type de la base de données.
-    :param tables: Tables de la base de données.
+    :param name: Database name.
+    :param type: Database type.
+    :param tables: Database tables.
     """
 
     name: str

@@ -13,19 +13,19 @@ from models.relational.metadata import (
 
 class ORM(ABC):
     """
-    Classe de base de gestion de la couche ORM.
+    Base class for ORM layer management.
 
     - Classes:
-        - Table: Classe de gestion des tables.
-        - Column: Classe de gestion des colonnes.
-        - NoSuchTableError: Erreur de table inexistante.
+        - Table: Table management class.
+        - Column: Column management class.
+        - NoSuchTableError: Table not found error.
     """
 
     schema: str | None
 
     class SQL_Verbs(str, Enum):
         """
-        Verbes SQL.
+        SQL verbs.
         """
 
         SELECT = "SELECT"
@@ -59,14 +59,14 @@ class ORM(ABC):
 
     class Table(ABC):
         """
-        Classe de gestion des tables.
+        Table management class.
 
-        - Attributs:
-            - name: Nom de la table.
-            - link_table: Table de l'ORM.
-            - columns_meta: Métadonnées des colonnes.
-            - unique_constraints: Contraintes d'unicité.
-            - orm: ORM.
+        - Attributes:
+            - name: Table name.
+            - link_table: ORM table.
+            - columns_meta: Column metadata.
+            - unique_constraints: Unique constraints.
+            - orm: ORM instance.
         """
 
         _name: str
@@ -77,7 +77,7 @@ class ORM(ABC):
 
         class AddColumnError(Exception):
             """
-            Erreur d'ajout de colonne.
+            Column addition error.
             """
 
             pass
@@ -85,9 +85,10 @@ class ORM(ABC):
         @abstractmethod
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             """
-            Constructeur de la classe Table.
+            Table class constructor.
+
             :param *args: Arguments.
-            :param **kwargs: Arguments nommés.
+            :param **kwargs: Named arguments.
             """
 
             pass
@@ -98,9 +99,10 @@ class ORM(ABC):
             column: ColumnMeta | ForeignKeyColumnMeta,
         ) -> ORM.Column:
             """
-            Ajoute une colonne à la table.
-            :param column: Colonne à créer.
-            :return: Colonne.
+            Adds a column to the table.
+
+            :param column: Column to create.
+            :return: Column.
             """
 
             pass
@@ -108,9 +110,10 @@ class ORM(ABC):
         @abstractmethod
         def get_column(self, name: str) -> ORM.Column | ORM.ForeignKeyColumn:
             """
-            Récupère une colonne de la table.
-            :param name: Nom de la colonne.
-            :return: Colonne.
+            Gets a column from the table.
+
+            :param name: Column name.
+            :return: Column.
             """
 
             pass
@@ -119,8 +122,9 @@ class ORM(ABC):
         @abstractmethod
         def name(self) -> str:
             """
-            Retourne le nom de la table.
-            :return: Nom de la table.
+            Returns the table name.
+
+            :return: Table name.
             """
 
             pass
@@ -129,29 +133,31 @@ class ORM(ABC):
         @abstractmethod
         def name(self, name: str) -> None:
             """
-            Modifie le nom de la table.
-            :param name: Nom de la table.
+            Changes the table name.
+
+            :param name: Table name.
             """
 
             pass
 
         def _table_name_for_request(self, name: str | None = None) -> str:
             """
-            Retourne le nom de la table pour une requête SQL.
-            :param name: Nom de la table.
-            :return: Nom de la table pour une requête SQL.
+            Returns the table name for an SQL request.
+
+            :param name: Table name.
+            :return: Table name for SQL request.
             """
             name = name or self.name
             return f'{self.orm.schema}."{name}"' if self.orm.schema else name
 
     class Column(ABC):
         """
-        Classe de gestion des colonnes.
+        Column management class.
 
-        - Attributs:
-            - meta: Métadonnées de la colonne.
-            - link_column: Colonne de l'ORM.
-            - orm: ORM.
+        - Attributes:
+            - meta: Column metadata.
+            - link_column: ORM column.
+            - orm: ORM instance.
         """
 
         meta: ColumnMeta
@@ -161,9 +167,10 @@ class ORM(ABC):
         @abstractmethod
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             """
-            Constructeur de la classe Column.
+            Column class constructor.
+
             :param *args: Arguments.
-            :param **kwargs: Arguments nommés.
+            :param **kwargs: Named arguments.
             """
 
             pass
@@ -171,9 +178,10 @@ class ORM(ABC):
         @abstractmethod
         def set_name(self, name: str) -> ORM.Column | ORM.ForeignKeyColumn:
             """
-            Modifie le nom de la colonne.
-            :param name: Nom de la colonne.
-            :return: Colonne.
+            Changes the column name.
+
+            :param name: Column name.
+            :return: Column.
             """
 
             pass
@@ -181,26 +189,29 @@ class ORM(ABC):
         @staticmethod
         def _name_for_request(name: str) -> str:
             """
-            Retourne le nom de la colonne pour une requête SQL.
-            :param name: Nom de la colonne.
-            :return: Nom de la colonne pour une requête SQL.
+            Returns the column name for an SQL request.
+
+            :param name: Column name.
+            :return: Column name for SQL request.
             """
             return f'"{name}"'
 
         @staticmethod
         def _nullable_for_request(nullable: bool) -> str:
             """
-            Retourne la contrainte de nullabilité pour une requête SQL.
-            :param nullable: Nullabilité de la colonne.
-            :return: Contrainte de nullabilité pour une requête SQL.
+            Returns the nullability constraint for an SQL request.
+
+            :param nullable: Column nullability.
+            :return: Nullability constraint for SQL request.
             """
             return ORM.SQL_Verbs.NOT_NULL.value if not nullable else ""
 
         @staticmethod
         def _default_for_request(default: Any) -> str:
             """
-            Retourne la valeur par défaut pour une requête SQL.
-            :return: Valeur par défaut pour une requête SQL.
+            Returns the default value for an SQL request.
+
+            :return: Default value for SQL request.
             """
             default_rq = ""
             if default is not None:
@@ -214,18 +225,20 @@ class ORM(ABC):
         @staticmethod
         def _primary_key_for_request(primary_key: bool) -> str:
             """
-            Retourne la contrainte de clé primaire pour une requête SQL.
-            :param primary_key: Clé primaire de la colonne.
-            :return: Contrainte de clé primaire pour une requête SQL.
+            Returns the primary key constraint for an SQL request.
+
+            :param primary_key: Column primary key.
+            :return: Primary key constraint for SQL request.
             """
             return ORM.SQL_Verbs.PRIMARYKEY.value if primary_key else ""
 
         @staticmethod
         def _unique_for_request(unique: bool) -> str:
             """
-            Retourne la contrainte d'unicité pour une requête SQL.
-            :param unique: Unicité de la colonne.
-            :return: Contrainte d'unicité pour une requête SQL.
+            Returns the unique constraint for an SQL request.
+
+            :param unique: Column uniqueness.
+            :return: Unique constraint for SQL request.
             """
             return ORM.SQL_Verbs.UNIQUE.value if unique else ""
 
@@ -234,9 +247,9 @@ class ORM(ABC):
             column: ColumnMeta | ForeignKeyColumnMeta, foreign_table_name: str
         ) -> str:
             """
-            Retourne la contrainte de clé étrangère pour une requête SQL.
-            :param column: Colonne.
-            :return: Contrainte de clé étrangère pour une requête SQL.
+            Returns the foreign key constraint for an SQL request.
+            :param column: Column.
+            :return: Foreign key constraint for SQL request.
             """
             foreign_key = ""
             if isinstance(column, ForeignKeyColumnMeta):
@@ -251,24 +264,24 @@ class ORM(ABC):
 
     class ForeignKeyColumn(Column):
         """
-        Classe de gestion des colonnes de clé étrangère.
+        Foreign key column management class.
 
-        - Attributs:
-            - meta: Métadonnées de la colonne.
-            - link_column: Colonne de l'ORM.
-            - orm: ORM.
+        - Attributes:
+            - meta: Column metadata.
+            - link_column: ORM column.
+            - orm: ORM instance.
         """
 
         meta: ForeignKeyColumnMeta
 
     class UniqueConstraint(ABC):
         """
-        Classe de gestion des contraintes d'unicité.
+        Unique constraint management class.
 
-        - Attributs:
-            - name: Nom de la contrainte.
-            - columns: Colonnes.
-            - link_constraint: Contrainte de l'ORM.
+        - Attributes:
+            - name: Constraint name.
+            - columns: Columns.
+            - link_constraint: ORM constraint.
         """
 
         name: str
@@ -277,29 +290,30 @@ class ORM(ABC):
 
     class NoSuchTableError(Exception):
         """
-        Erreur de table inexistante.
+        Table not found error.
         """
 
         pass
 
     class CreateTableError(Exception):
         """
-        Erreur de création de table.
+        Table creation error.
         """
 
         pass
 
     class SQLExecutionError(Exception):
         """
-        Erreur d'exécution de requête SQL.
+        SQL execution error.
         """
 
         pass
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """
-        Constructeur de la couche ORM pour SQLAlchemy.
-        :param engine_url: URL de connexion à la base de données.
+        ORM layer constructor for SQLAlchemy.
+
+        :param engine_url: Database connection URL.
         """
 
         pass
@@ -307,8 +321,8 @@ class ORM(ABC):
     @staticmethod
     def get_no_such_table_error() -> Type[Exception]:
         """
-        Retourne l'erreur de table inexistante.
-        :return: Erreur de table inexistante.
+        Returns the table not found error.
+        :return: Table not found error.
         """
 
         return Exception
@@ -316,9 +330,10 @@ class ORM(ABC):
     @abstractmethod
     def close_session(self, *args: Any, **kwargs: Any) -> None:
         """
-        Ferme une session.
+        Closes a session.
+
         :param *args: Arguments.
-        :param **kwargs: Arguments nommés.
+        :param **kwargs: Named arguments.
         """
 
         pass
@@ -331,10 +346,11 @@ class ORM(ABC):
         unique_constraints_columns: list[UniqueColumnsMeta] | None = None,
     ) -> Table:
         """
-        Récupère ou crée une table.
-        :param table_name: Nom de la table.
-        :param columns: Colonnes de la table.
-        :param unique_constraints_columns: Contraintes d'unicité.
+        Gets or creates a table.
+
+        :param table_name: Table name.
+        :param columns: Table columns.
+        :param unique_constraints_columns: Unique constraints.
         :return: Table.
         """
 
@@ -343,7 +359,8 @@ class ORM(ABC):
     @abstractmethod
     def get_tables(self) -> dict[str, Table]:
         """
-        Récupère les tables de la base de données.
+        Gets all database tables.
+
         :return: Tables.
         """
 
@@ -352,8 +369,9 @@ class ORM(ABC):
     @abstractmethod
     def get_table(self, table_name: str) -> Table:
         """
-        Récupère une table de la base de données.
-        :param table_name: Nom de la table.
+        Gets a database table.
+
+        :param table_name: Table name.
         :return: Table.
         """
 

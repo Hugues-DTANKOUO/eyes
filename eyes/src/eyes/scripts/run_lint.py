@@ -1,4 +1,4 @@
-""" Script d'exécution de Ruff, Black et MyPy sur l'ensemble des modules du projet. """
+""" Script for running Ruff, Black and MyPy across all project modules. """
 
 import subprocess
 
@@ -14,16 +14,16 @@ LINTERS = ["black", "mypy"]
 
 
 def run() -> None:
-    """Exécute Ruff, Black et Mypy sur l'ensemble des modules du projet."""
+    """Execute Ruff, Black and Mypy across all project modules."""
 
-    # Exécution de Ruff, Black et Mypy sur l'ensemble des modules du projet
-    print("Exécution de Ruff, Black et Mypy sur l'ensemble des modules du projet...")
+    # Execute Ruff, Black and Mypy across all project modules
+    print("Running Ruff, Black and Mypy across all project modules...")
 
     for module in MODULES:
-        # Exécution de Ruff sur le module
-        print(f"Exécution de Ruff sur le module {module.name}...")
+        # Execute Ruff on the module
+        print(f"Running Ruff on module {module.name}...")
         subprocess.run(["ruff", "check", module.path], check=True)
 
         for linter in LINTERS:
-            print(f"Exécution de {linter} sur le module {module.name}...")
+            print(f"Running {linter} on module {module.name}...")
             subprocess.run([linter, module.path], check=True)

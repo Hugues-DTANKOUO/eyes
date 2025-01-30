@@ -1,4 +1,4 @@
-""" Scripts d'exécution des tests unitaires sur l'ensemble des modules du projet. """
+""" Scripts for running unit tests across all project modules. """
 
 import subprocess
 
@@ -12,10 +12,10 @@ MODULES: list[Module] = [EYES, MODELS]
 
 
 def run() -> None:
-    """Exécute les tests unitaires sur l'ensemble des modules du projet."""
+    """Execute unit tests across all project modules."""
 
-    print("Exécution des tests unitaires sur l'ensemble des modules du projet...")
+    print("Running unit tests across all project modules...")
 
     for module in MODULES:
-        print(f"Exécution des tests unitaires sur le module {module.name}...")
+        print(f"Running unit tests on module {module.name}...")
         subprocess.run(["pytest", module.path, "-v"])

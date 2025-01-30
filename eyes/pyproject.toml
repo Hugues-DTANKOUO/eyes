@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "eyes"
 version = "0.1.0"
-description = "Logiciel tout en un de gestion du cycle de vie de n'importe quelle entreprise"
+description = "Comprehensive business lifecycle management software"
 authors = ["Hugues DTANKOUO <huguesdtankouo@gmail.com>"]
 readme = "README.md"
 packages = [

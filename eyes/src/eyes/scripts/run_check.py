@@ -1,9 +1,9 @@
-""" Analyse statique du code et exécution des tests unitaires sur l'ensemble des modules du projet. """
+""" Static code analysis and unit tests execution across all project modules. """
 
 from eyes.scripts import run_lint, run_tests
 
 
 def run() -> None:
-    """Exécute l'analyse statique du code et les tests unitaires sur l'ensemble des modules du projet."""
+    """Execute static code analysis and unit tests across all project modules."""
     run_lint.run()
     run_tests.run()
